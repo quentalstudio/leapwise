@@ -1,10 +1,10 @@
-<script>
+
   function isMobilePerformanceMode() {
     return window.matchMedia("(max-width: 767px)").matches;
   }
-</script>
 
-<script>
+
+
   // Force browser to always start at top
   if ("scrollRestoration" in history) {
     history.scrollRestoration = "manual";
@@ -145,8 +145,8 @@
       }
     });
   });
-</script>
-<script>
+ 
+ 
   gsap.registerPlugin(ScrollTrigger, SplitText);
 
   function initRevealOnScroll() {
@@ -220,9 +220,9 @@
       initRevealOnScroll();
     });
   });
-</script>
+ 
 
-<script>
+ 
   function initDrawPathCursorEffect() {
     if (window.matchMedia('(pointer: coarse)').matches) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -381,9 +381,9 @@
   document.addEventListener('DOMContentLoaded', () => {
     initDrawPathCursorEffect();
   });
-</script>
+ 
 
-<script>
+ 
   gsap.registerPlugin(SplitText);
 
   function lockPageScroll() {
@@ -592,9 +592,9 @@
       initCrispLoadingAnimation();
     });
   });
-</script>
+ 
 
-<script>
+ 
   gsap.registerPlugin(ScrollTrigger);
 
   function initProgressNavigation() {
@@ -657,9 +657,9 @@
   document.addEventListener("DOMContentLoaded", () => {
     initProgressNavigation();
   });
-</script>
+ 
 
-<script>
+ 
   function initModalBasic() {
     const modalGroup = document.querySelector('[data-modal-group-status]');
     const modals = document.querySelectorAll('[data-modal-name]');
@@ -787,9 +787,9 @@
   document.addEventListener("DOMContentLoaded", () => {
     initModalBasic();
   });
-</script>
+ 
 
-<script>
+ 
   gsap.registerPlugin(ScrollTrigger, SplitText);
 
   function initStickyTitleScroll() {
@@ -987,10 +987,10 @@
   document.addEventListener("DOMContentLoaded", () => {
     initStickyTitleScroll();
   });
-</script>
+ 
 
 
-<script>
+ 
   gsap.registerPlugin(ScrollTrigger, Flip);
 
   function initBackgroundZoom() {
@@ -1248,10 +1248,10 @@
   document.addEventListener("DOMContentLoaded", () => {
     initBackgroundZoom();
   });
-</script>
+ 
 
 
-<script>
+ 
   // set variables
   let items = $(".marquee_item");
   let textItem = $(".marquee_text-item");
@@ -1371,9 +1371,9 @@
     // reset resting position back to center of marquee
     setCursorToMarqueeCenter();
   });
-</script>
+ 
 
-<script>
+ 
   gsap.registerPlugin(ScrollTrigger);
 
   function initStackingCardsParallax() {
@@ -1483,9 +1483,9 @@
   document.addEventListener("DOMContentLoaded", () => {
     initStackingCardsParallax();
   });
-</script>
+ 
 
-<script>
+ 
   function initOverlappingSlider() {
     const inits = document.querySelectorAll("[data-overlap-slider-init]");
     if (!inits.length) return;
@@ -1861,9 +1861,9 @@
   document.addEventListener("DOMContentLoaded", function () {
     initOverlappingSlider();
   });
-</script>
+ 
 
-<script>
+ 
 document.addEventListener("DOMContentLoaded", function () {
   const faqCards = document.querySelectorAll(".faq_card_wrap");
 
@@ -1885,9 +1885,9 @@ document.addEventListener("DOMContentLoaded", function () {
     updateCardState();
   });
 });
-</script>
+ 
 
-<script>
+ 
 (() => {
   const SELECTOR = '[data-count="True"]';
   const DEFAULT_DURATION = 2000;
@@ -2063,9 +2063,9 @@ document.addEventListener("DOMContentLoaded", function () {
     init();
   }
 })();
-</script>
+ 
 
-<script>
+ 
   gsap.registerPlugin(DrawSVGPlugin);
 
 function initDrawRandomUnderline() {
@@ -2159,4 +2159,4 @@ function initDrawRandomUnderline() {
 document.addEventListener('DOMContentLoaded', function() {
   initDrawRandomUnderline();
 });
-</script>
+ 
