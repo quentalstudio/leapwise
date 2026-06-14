@@ -147,79 +147,169 @@
   });
  
  
-  gsap.registerPlugin(ScrollTrigger, SplitText);
+gsap.registerPlugin(ScrollTrigger, SplitText);
 
-  function initRevealOnScroll() {
-    const wordElements = document.querySelectorAll('[data-text-reveal="words"]');
-    const lineElements = document.querySelectorAll('[data-text-reveal="lines"]');
-    const revealElements = document.querySelectorAll('[data-element-reveal]');
+let revealResizeTimer;
+let revealSplits = [];
+let revealAnimations = [];
+let revealInitialized = false;
 
-    wordElements.forEach((textEl) => {
-      const split = new SplitText(textEl, {
-        type: "words",
-        mask: "words"
-      });
+function initRevealOnScroll() {
+  cleanupRevealOnScroll();
 
+  const wordElements = document.querySelectorAll('[data-text-reveal="words"]');
+  const lineElements = document.querySelectorAll('[data-text-reveal="lines"]');
+  const revealElements = document.querySelectorAll('[data-element-reveal]');
+
+  wordElements.forEach((textEl) => {
+    const alreadyRevealed = textEl.dataset.revealDone === "true";
+
+    const split = new SplitText(textEl, {
+      type: "words",
+      mask: "words"
+    });
+
+    revealSplits.push(split);
+
+    if (alreadyRevealed) {
       gsap.set(split.words, {
-        yPercent: 110
+        yPercent: 0
       });
+      return;
+    }
 
-      gsap.to(split.words, {
-        yPercent: 0,
-        stagger: 0.075,
-        ease: "expo.out",
-        duration: 1,
-        scrollTrigger: {
-          trigger: textEl,
-          start: "top 85%",
-          once: true
+    gsap.set(split.words, {
+      yPercent: 110
+    });
+
+    const tween = gsap.to(split.words, {
+      yPercent: 0,
+      stagger: 0.075,
+      ease: "expo.out",
+      duration: 1,
+      scrollTrigger: {
+        trigger: textEl,
+        start: "top 85%",
+        once: true,
+        onEnter: () => {
+          textEl.dataset.revealDone = "true";
         }
-      });
+      }
     });
 
-    lineElements.forEach((textEl) => {
-      const split = new SplitText(textEl, {
-        type: "lines",
-        mask: "lines"
-      });
-
-      gsap.set(split.lines, {
-        yPercent: 110
-      });
-
-      gsap.to(split.lines, {
-        yPercent: 0,
-        stagger: 0.08,
-        ease: "expo.out",
-        duration: 1,
-        scrollTrigger: {
-          trigger: textEl,
-          start: "top 85%",
-          once: true
-        }
-      });
-    });
-
-    revealElements.forEach((el) => {
-      gsap.from(el, {
-        y: 40,
-        opacity: 0,
-        ease: "expo.out",
-        duration: 1,
-        scrollTrigger: {
-          trigger: el,
-          start: "top 85%",
-          once: true
-        }
-      });
-    });
-  }
-
-  document.addEventListener("DOMContentLoaded", () => {
-    document.fonts.ready.then(() => {
-      initRevealOnScroll();
-    });
+    revealAnimations.push(tween);
   });
+
+  lineElements.forEach((textEl) => {
+    const alreadyRevealed = textEl.dataset.revealDone === "true";
+
+    const split = new SplitText(textEl, {
+      type: "lines",
+      mask: "lines"
+    });
+
+    revealSplits.push(split);
+
+    if (alreadyRevealed) {
+      gsap.set(split.lines, {
+        yPercent: 0
+      });
+      return;
+    }
+
+    gsap.set(split.lines, {
+      yPercent: 110
+    });
+
+    const tween = gsap.to(split.lines, {
+      yPercent: 0,
+      stagger: 0.08,
+      ease: "expo.out",
+      duration: 1,
+      scrollTrigger: {
+        trigger: textEl,
+        start: "top 85%",
+        once: true,
+        onEnter: () => {
+          textEl.dataset.revealDone = "true";
+        }
+      }
+    });
+
+    revealAnimations.push(tween);
+  });
+
+  revealElements.forEach((el) => {
+    const alreadyRevealed = el.dataset.revealDone === "true";
+
+    if (alreadyRevealed) {
+      gsap.set(el, {
+        y: 0,
+        opacity: 1
+      });
+      return;
+    }
+
+    const tween = gsap.from(el, {
+      y: 40,
+      opacity: 0,
+      ease: "expo.out",
+      duration: 1,
+      scrollTrigger: {
+        trigger: el,
+        start: "top 85%",
+        once: true,
+        onEnter: () => {
+          el.dataset.revealDone = "true";
+        }
+      }
+    });
+
+    revealAnimations.push(tween);
+  });
+
+  revealInitialized = true;
+
+  ScrollTrigger.refresh();
+}
+
+function cleanupRevealOnScroll() {
+  revealAnimations.forEach((tween) => {
+    if (tween.scrollTrigger) {
+      tween.scrollTrigger.kill();
+    }
+
+    tween.kill();
+  });
+
+  revealAnimations = [];
+
+  revealSplits.forEach((split) => {
+    if (split && split.revert) {
+      split.revert();
+    }
+  });
+
+  revealSplits = [];
+}
+
+function refreshRevealOnResize() {
+  if (!revealInitialized) return;
+
+  clearTimeout(revealResizeTimer);
+
+  revealResizeTimer = setTimeout(() => {
+    initRevealOnScroll();
+  }, 250);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.fonts.ready.then(() => {
+    initRevealOnScroll();
+  });
+});
+
+window.addEventListener("resize", refreshRevealOnResize);
  
 
  
