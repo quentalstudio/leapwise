@@ -390,8 +390,7 @@
       initRevealOnScroll();
     }, 250);
   }
-
-  /* =========================================================
+    /* =========================================================
     CURSOR TRAIL — DESKTOP ONLY
   ========================================================= */
 
@@ -790,7 +789,7 @@
     }
 
     function updateIndicator(activeLink) {
-            if (!activeLink) return;
+      if (!activeLink) return;
 
       const parentWidth = navProgress.offsetWidth;
       const parentHeight = navProgress.offsetHeight;
@@ -984,9 +983,7 @@
         }
       }, closeDuration);
     }
-  }
-
-  /* =========================================================
+  }  /* =========================================================
     STICKY TITLE — MOBILE LIGHT / DESKTOP FULL
   ========================================================= */
 
@@ -1452,158 +1449,6 @@
   }
 
   /* =========================================================
-    MARQUEE — VANILLA JS, NO JQUERY
-  ========================================================= */
-
-  function initMarquee() {
-    if (!hasGSAP()) return;
-
-    const items = Array.from(document.querySelectorAll(".marquee_item"));
-    const textItems = Array.from(document.querySelectorAll(".marquee_text-item"));
-    const wraps = Array.from(document.querySelectorAll(".marquee_wrap"));
-
-    if (!items.length || !wraps.length) return;
-        if (!items.length || !wraps.length) return;
-
-    const totalItems = items.length / 2 + 1;
-    const duration = totalItems * 3.2;
-
-    let cursorTooltip = document.querySelector(".marquee_cursor-tooltip");
-
-    if (!cursorTooltip && !isTouchDevice()) {
-      cursorTooltip = document.createElement("div");
-      cursorTooltip.className = "marquee_cursor-tooltip";
-      cursorTooltip.setAttribute("aria-hidden", "true");
-      cursorTooltip.innerHTML = `
-        <span class="marquee_pause-icon"></span>
-        <span>Paused</span>
-      `;
-      document.body.appendChild(cursorTooltip);
-    }
-
-    function setCursorToMarqueeCenter() {
-      if (!cursorTooltip) return;
-
-      const firstList = wraps[0].querySelector(".marquee_list");
-      if (!firstList) return;
-
-      const rect = firstList.getBoundingClientRect();
-
-      gsap.set(cursorTooltip, {
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2
-      });
-    }
-
-    setCursorToMarqueeCenter();
-
-    window.addEventListener("resize", function () {
-      if (!cursorTooltip || !cursorTooltip.classList.contains("is-visible")) {
-        setCursorToMarqueeCenter();
-      }
-    });
-
-    function makeItemActive(myIndex) {
-      items.forEach((item) => item.classList.remove("active"));
-
-      document.querySelectorAll(".marquee_list").forEach((list) => {
-        const childItems = list.querySelectorAll(".marquee_item");
-        if (childItems[myIndex]) {
-          childItems[myIndex].classList.add("active");
-        }
-      });
-
-      textItems.forEach((item) => item.classList.remove("active"));
-
-      if (textItems[myIndex]) {
-        textItems[myIndex].classList.add("active");
-      }
-    }
-
-    makeItemActive(3);
-
-    function checkPosition() {
-      const wrap = wraps[0];
-      const wrapRect = wrap.getBoundingClientRect();
-      const wrapCenter = wrapRect.top + wrapRect.height / 2;
-
-      items.forEach((item) => {
-        const rect = item.getBoundingClientRect();
-        const itemHeight = rect.height / 2;
-        const offsetTop = rect.top + itemHeight;
-
-        if (offsetTop < wrapCenter + itemHeight / 2 && offsetTop > wrapCenter) {
-          const siblings = Array.from(item.parentElement.children);
-          const myIndex = siblings.indexOf(item);
-          makeItemActive(myIndex);
-        }
-      });
-    }
-
-    if (prefersReducedMotion) {
-      gsap.set(".marquee_track", {
-        clearProps: "transform"
-      });
-      return;
-    }
-
-    const marquee = gsap.timeline({
-      repeat: -1
-    }).fromTo(
-      ".marquee_track",
-      {
-        yPercent: 0
-      },
-      {
-        yPercent: -50,
-        duration,
-        ease: "none",
-        onUpdate: checkPosition
-      }
-    );
-
-    if (isTouchDevice()) return;
-
-    function moveCursor(e) {
-      if (!cursorTooltip) return;
-
-      gsap.to(cursorTooltip, {
-        x: e.clientX,
-        y: e.clientY,
-        duration: 0.12,
-        ease: "power2.out",
-        overwrite: true
-      });
-    }
-
-    wraps.forEach((wrap) => {
-      wrap.addEventListener("mouseenter", function (e) {
-        marquee.pause();
-
-        if (cursorTooltip) {
-          gsap.set(cursorTooltip, {
-            x: e.clientX,
-            y: e.clientY
-          });
-
-          cursorTooltip.classList.add("is-visible");
-        }
-      });
-
-      wrap.addEventListener("mousemove", moveCursor);
-
-      wrap.addEventListener("mouseleave", function () {
-        marquee.resume();
-
-        if (cursorTooltip) {
-          cursorTooltip.classList.remove("is-visible");
-          setCursorToMarqueeCenter();
-        }
-      });
-    });
-  }
-
-  /* =========================================================
     STACKING CARDS — MOBILE LIGHT / DESKTOP FULL
   ========================================================= */
 
@@ -1704,9 +1549,7 @@
         );
       }
     });
-  }
-
-  /* =========================================================
+  }  /* =========================================================
     OVERLAPPING SLIDER — MOBILE NATIVE / DESKTOP DRAGGABLE
   ========================================================= */
 
@@ -2239,9 +2082,7 @@
       el.dataset.countObserved = "true";
       observer.observe(el);
     });
-  }
-
-  /* =========================================================
+  }  /* =========================================================
     DRAW RANDOM UNDERLINE — DESKTOP ONLY
   ========================================================= */
 
@@ -2342,6 +2183,245 @@
   }
 
   /* =========================================================
+    STACKING STICKY CARDS BOUNCE
+  ========================================================= */
+
+  function initStackingStickyCardsBounce() {
+    if (!hasGSAP() || !hasPlugin("ScrollTrigger")) return;
+
+    safeRegisterPlugins();
+
+    const cardsSections = document.querySelectorAll("[data-stacking-cards-init]");
+    if (!cardsSections.length) return;
+
+    const currentTier = getCurrentViewportTier();
+    window.viewportTier = currentTier;
+
+    killStackingStickyTriggers(cardsSections);
+    resetStackingStickyTargets(cardsSections);
+
+    cardsSections.forEach((section, sectionIndex) => {
+      const tier = currentTier;
+
+      const isEnabled =
+        (tier === "desktop" && section.dataset.stackingCardsDesktop === "true") ||
+        (tier === "tablet" && section.dataset.stackingCardsTablet === "true") ||
+        ((tier === "mobile-portrait" || tier === "mobile-landscape") &&
+          section.dataset.stackingCardsMobile === "true");
+
+      if (!isEnabled) return;
+
+      const cards = Array.from(section.querySelectorAll("[data-stacking-card]"));
+      if (!cards.length) return;
+
+      const stickyTop = parseFloat(getComputedStyle(cards[0]).top) || 0;
+
+      const rotateValues =
+        tier === "desktop"
+          ? parseRotateValues(section, "data-stacking-cards-desktop-rotate")
+          : tier === "tablet"
+            ? parseRotateValues(section, "data-stacking-cards-tablet-rotate")
+            : parseRotateValues(section, "data-stacking-cards-mobile-rotate");
+
+      const xValues =
+        tier === "desktop"
+          ? parseAxisValues(section, "data-stacking-cards-desktop-x")
+          : tier === "tablet"
+            ? parseAxisValues(section, "data-stacking-cards-tablet-x")
+            : parseAxisValues(section, "data-stacking-cards-mobile-x");
+
+      const yValues =
+        tier === "desktop"
+          ? parseAxisValues(section, "data-stacking-cards-desktop-y")
+          : tier === "tablet"
+            ? parseAxisValues(section, "data-stacking-cards-tablet-y")
+            : parseAxisValues(section, "data-stacking-cards-mobile-y");
+
+      cards.forEach((card, index) => {
+        const targetEl = card.querySelector("[data-stacking-card-target]");
+        if (!targetEl) return;
+
+        const rotate = rotateValues[index % rotateValues.length];
+        const x = xValues[index % xValues.length];
+        const y = yValues[index % yValues.length];
+
+        gsap.set(targetEl, {
+          rotate: 0,
+          x: 0,
+          y: 0,
+          scale: 1,
+          zIndex: cards.length - index,
+          transformOrigin: "50% 50%"
+        });
+
+        if (prefersReducedMotion) return;
+
+        gsap.to(targetEl, {
+          rotate,
+          x,
+          y,
+          ease: "power1.in",
+          overwrite: "auto",
+          scrollTrigger: {
+            id: `stacking-sticky-rotate-${sectionIndex}-${index}`,
+            trigger: card,
+            start: "top 75%",
+            end: `top-=${stickyTop} top`,
+            scrub: true,
+            invalidateOnRefresh: true
+          }
+        });
+
+        ScrollTrigger.create({
+          id: `stacking-sticky-bounce-${sectionIndex}-${index}`,
+          trigger: card,
+          start: `top-=${stickyTop} top`,
+          onEnter: () => pulseStackingCard(targetEl),
+          onEnterBack: () => pulseStackingCard(targetEl)
+        });
+      });
+    });
+
+    refreshScrollTrigger(300);
+
+    function parseRotateValues(section, attr) {
+      const fallback = [0, 4, -4];
+      const values = (section.getAttribute(attr) || "")
+        .split(",")
+        .map((val) => parseFloat(val.trim()));
+
+      return values.length >= 1 && values.every((value) => !Number.isNaN(value))
+        ? values
+        : fallback;
+    }
+
+    function parseAxisValues(section, attr) {
+      const raw = section.getAttribute(attr);
+      if (!raw) return ["0em", "0em", "0em"];
+
+      const values = raw
+        .split(",")
+        .map((val) => val.trim())
+        .filter(Boolean);
+
+      return values.length ? values : ["0em", "0em", "0em"];
+    }
+  }
+
+  function killStackingStickyTriggers(cardsSections) {
+    if (!hasPlugin("ScrollTrigger")) return;
+
+    ScrollTrigger.getAll().forEach((trigger) => {
+      const id = trigger.vars && trigger.vars.id ? trigger.vars.id : "";
+
+      if (id.startsWith("stacking-sticky")) {
+        trigger.kill();
+        return;
+      }
+
+      if (!cardsSections || !trigger.trigger) return;
+
+      cardsSections.forEach((section) => {
+        if (section.contains(trigger.trigger) && id.startsWith("stacking-sticky")) {
+          trigger.kill();
+        }
+      });
+    });
+  }
+
+  function resetStackingStickyTargets(scope) {
+    const rootNodes = scope && scope.length ? Array.from(scope) : [document];
+
+    rootNodes.forEach((root) => {
+      root.querySelectorAll("[data-stacking-card-target]").forEach((el) => {
+        gsap.killTweensOf(el);
+        gsap.set(el, {
+          clearProps: "all"
+        });
+      });
+    });
+  }
+
+  function getCurrentViewportTier() {
+    const width = window.innerWidth;
+
+    if (width <= 479) return "mobile-portrait";
+    if (width <= 767) return "mobile-landscape";
+    if (width <= 991) return "tablet";
+    return "desktop";
+  }
+
+  function pulseStackingCard(targetEl) {
+    if (prefersReducedMotion || !targetEl) return;
+
+    const width = targetEl.offsetWidth;
+    const height = targetEl.offsetHeight;
+
+    if (!width || !height) return;
+
+    const fontSize = parseFloat(getComputedStyle(targetEl).fontSize) || 16;
+    const stretchPx = 1.5 * fontSize;
+    const targetScaleX = (width + stretchPx) / width;
+    const targetScaleY = Math.max(0.75, (height - stretchPx * 0.33) / height);
+
+    gsap.killTweensOf(targetEl);
+
+    gsap.timeline()
+      .to(targetEl, {
+        scaleX: targetScaleX,
+        scaleY: targetScaleY,
+        duration: 0.1,
+        ease: "power1.out"
+      })
+      .to(targetEl, {
+        scaleX: 1,
+        scaleY: 1,
+        duration: 1,
+        ease: "elastic.out(1, 0.3)"
+      });
+  }
+
+  function initStackingStickyCardsResizeListener() {
+    if (window._hasStackingStickyResizeListener) return;
+
+    let lastTier = getCurrentViewportTier();
+
+    window.addEventListener(
+      "resize",
+      debounceOnWidthChange(() => {
+        const nextTier = getCurrentViewportTier();
+
+        if (lastTier !== nextTier) {
+          killStackingStickyTriggers();
+          resetStackingStickyTargets();
+          initStackingStickyCardsBounce();
+        }
+
+        lastTier = nextTier;
+        window.viewportTier = nextTier;
+      }, 250)
+    );
+
+    window._hasStackingStickyResizeListener = true;
+  }
+
+  function debounceOnWidthChange(fn, ms) {
+    let lastWidth = window.innerWidth;
+    let timer;
+
+    return function (...args) {
+      clearTimeout(timer);
+
+      timer = setTimeout(() => {
+        if (window.innerWidth !== lastWidth) {
+          lastWidth = window.innerWidth;
+          fn.apply(this, args);
+        }
+      }, ms);
+    };
+  }
+
+  /* =========================================================
     INIT
   ========================================================= */
 
@@ -2361,13 +2441,14 @@
       initStickyTitleScroll();
       initBackgroundZoom();
       initStackingCardsParallax();
+      initStackingStickyCardsBounce();
+      initStackingStickyCardsResizeListener();
       refreshScrollTrigger(300);
     });
 
     initDrawPathCursorEffect();
     initProgressNavigation();
     initModalBasic();
-    initMarquee();
     initOverlappingSlider();
     initFAQ();
     initCounters();
