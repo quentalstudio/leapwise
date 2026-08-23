@@ -214,182 +214,362 @@
     };
   }
 
+ /* =========================================================
+  REVEAL ON SCROLL — SPLITTEXT 3.13+ / RESPONSIVE / ACCESSIBLE
+========================================================= */
+
+let revealSplits = [];
+let revealAnimations = [];
+
+/* =========================================================
+  CLEANUP
+========================================================= */
+
+function cleanupRevealOnScroll() {
+  revealAnimations.forEach((animation) => {
+    if (animation && animation.scrollTrigger) {
+      animation.scrollTrigger.kill();
+    }
+
+    if (animation && animation.kill) {
+      animation.kill();
+    }
+  });
+
+  revealAnimations = [];
+
+  revealSplits.forEach((split) => {
+    if (split && split.revert) {
+      split.revert();
+    }
+  });
+
+  revealSplits = [];
+}
+
+/* =========================================================
+  GET TEXT TARGETS
+
+  Se data-text-reveal estiver num Rich Text/container,
+  anima cada bloco de texto individualmente.
+
+  Se estiver num elemento normal, anima o próprio elemento.
+========================================================= */
+
+function getTextRevealTargets(type) {
+  const targets = [];
+
+  document
+    .querySelectorAll(`[data-text-reveal="${type}"]`)
+    .forEach((element) => {
+      const blocks = Array.from(element.children).filter((child) => {
+        return [
+          "P",
+          "H1",
+          "H2",
+          "H3",
+          "H4",
+          "H5",
+          "H6",
+          "BLOCKQUOTE"
+        ].includes(child.tagName);
+      });
+
+      /*
+       * ELEMENTO NORMAL
+       *
+       * Exemplo:
+       * <h2 data-text-reveal="lines">
+       */
+      if (!blocks.length) {
+        targets.push(element);
+        return;
+      }
+
+      /*
+       * CONTAINER / RICH TEXT
+       *
+       * Exemplo:
+       * <div class="w-richtext" data-text-reveal="lines">
+       *   <p>...</p>
+       *   <p>...</p>
+       * </div>
+       */
+      blocks.forEach((block) => {
+        targets.push(block);
+      });
+
+      /*
+       * LIST ITEMS
+       */
+      Array.from(element.children).forEach((child) => {
+        if (
+          child.tagName !== "UL" &&
+          child.tagName !== "OL"
+        ) {
+          return;
+        }
+
+        child
+          .querySelectorAll(":scope > li")
+          .forEach((li) => {
+            targets.push(li);
+          });
+      });
+    });
+
+  return targets;
+}
+
+/* =========================================================
+  INIT
+========================================================= */
+
+function initRevealOnScroll() {
+  if (
+    !hasGSAP() ||
+    !hasPlugin("SplitText") ||
+    !hasPlugin("ScrollTrigger")
+  ) {
+    return;
+  }
+
+  safeRegisterPlugins();
+
+  cleanupRevealOnScroll();
+
+  const wordElements =
+    getTextRevealTargets("words");
+
+  const lineElements =
+    getTextRevealTargets("lines");
+
+  const revealElements =
+    document.querySelectorAll(
+      "[data-element-reveal]"
+    );
+
   /* =========================================================
-    REVEAL ON SCROLL — RESIZE SAFE + ACCESSIBLE
+    WORD REVEAL
   ========================================================= */
 
-  let revealResizeTimer;
-  let revealSplits = [];
-  let revealAnimations = [];
-  let revealInitialized = false;
+  wordElements.forEach((textEl) => {
+    const alreadyRevealed =
+      textEl.dataset.revealDone === "true";
 
-  function cleanupRevealOnScroll() {
-    revealAnimations.forEach((tween) => {
-      if (tween.scrollTrigger) tween.scrollTrigger.kill();
-      tween.kill();
-    });
+    const split = SplitText.create(textEl, {
+      type: "words",
 
-    revealAnimations = [];
+      mask: "words",
 
-    revealSplits.forEach((split) => {
-      if (split && split.revert) split.revert();
-    });
+      /*
+       * SplitText trata automaticamente
+       * font loading + resize.
+       */
+      autoSplit: true,
 
-    revealSplits = [];
-  }
+      /*
+       * Evita duplicar/reestruturar elementos
+       * nested desnecessariamente.
+       */
+      deepSlice: false,
 
-  function initRevealOnScroll() {
-    if (!hasGSAP() || !hasPlugin("SplitText") || !hasPlugin("ScrollTrigger")) return;
+      /*
+       * O SplitText moderno já trata
+       * aria-label / aria-hidden.
+       */
+      aria: "auto",
 
-    safeRegisterPlugins();
-    cleanupRevealOnScroll();
+      onSplit(self) {
+        /*
+         * Se já revelou ou o utilizador prefere
+         * reduced motion, mostra imediatamente.
+         */
+        if (
+          alreadyRevealed ||
+          prefersReducedMotion
+        ) {
+          gsap.set(self.words, {
+            yPercent: 0
+          });
 
-    const wordElements = document.querySelectorAll('[data-text-reveal="words"]');
-    const lineElements = document.querySelectorAll('[data-text-reveal="lines"]');
-    const revealElements = document.querySelectorAll("[data-element-reveal]");
+          textEl.dataset.revealDone =
+            "true";
 
-    wordElements.forEach((textEl) => {
-      const originalText = textEl.dataset.originalText || textEl.textContent;
-      textEl.dataset.originalText = originalText;
-      textEl.setAttribute("aria-label", originalText);
+          return;
+        }
 
-      const alreadyRevealed = textEl.dataset.revealDone === "true";
-
-      const split = new SplitText(textEl, {
-        type: "words",
-        mask: "words"
-      });
-
-      revealSplits.push(split);
-
-      split.words.forEach((word) => {
-        word.setAttribute("aria-hidden", "true");
-      });
-
-      if (alreadyRevealed || prefersReducedMotion) {
-        gsap.set(split.words, {
-          yPercent: 0
+        gsap.set(self.words, {
+          yPercent: 110
         });
 
-        textEl.dataset.revealDone = "true";
-        return;
-      }
+        const tween = gsap.to(
+          self.words,
+          {
+            yPercent: 0,
+            stagger: 0.075,
+            ease: "expo.out",
+            duration: 1,
 
-      gsap.set(split.words, {
-        yPercent: 110
-      });
+            scrollTrigger: {
+              trigger: textEl,
+              start: "top 85%",
+              once: true,
 
-      const tween = gsap.to(split.words, {
-        yPercent: 0,
-        stagger: 0.075,
-        ease: "expo.out",
-        duration: 1,
-        scrollTrigger: {
-          trigger: textEl,
-          start: "top 85%",
-          once: true,
-          onEnter: () => {
-            textEl.dataset.revealDone = "true";
+              onEnter: () => {
+                textEl.dataset.revealDone =
+                  "true";
+              }
+            }
           }
-        }
-      });
+        );
 
-      revealAnimations.push(tween);
+        revealAnimations.push(tween);
+
+        /*
+         * IMPORTANTE:
+         * retornar a animação permite ao SplitText
+         * limpar/sincronizar corretamente num re-split.
+         */
+        return tween;
+      }
     });
 
-    lineElements.forEach((textEl) => {
-      const originalText = textEl.dataset.originalText || textEl.textContent;
-      textEl.dataset.originalText = originalText;
-      textEl.setAttribute("aria-label", originalText);
+    revealSplits.push(split);
+  });
 
-      const alreadyRevealed = textEl.dataset.revealDone === "true";
+  /* =========================================================
+    LINE REVEAL
+  ========================================================= */
 
-      const split = new SplitText(textEl, {
-        type: "lines",
-        mask: "lines"
-      });
+  lineElements.forEach((textEl) => {
+    const alreadyRevealed =
+      textEl.dataset.revealDone === "true";
 
-      revealSplits.push(split);
+    const split = SplitText.create(textEl, {
+      type: "lines",
 
-      split.lines.forEach((line) => {
-        line.setAttribute("aria-hidden", "true");
-      });
+      mask: "lines",
 
-      if (alreadyRevealed || prefersReducedMotion) {
-        gsap.set(split.lines, {
-          yPercent: 0
+      /*
+       * Responsive re-splitting nativo.
+       */
+      autoSplit: true,
+
+      /*
+       * Evita reorganizar nested elements
+       * quando possível.
+       */
+      deepSlice: false,
+
+      /*
+       * Accessibility nativa do SplitText.
+       */
+      aria: "auto",
+
+      onSplit(self) {
+        /*
+         * Já revelou / reduced motion
+         */
+        if (
+          textEl.dataset.revealDone ===
+            "true" ||
+          prefersReducedMotion
+        ) {
+          gsap.set(self.lines, {
+            yPercent: 0
+          });
+
+          textEl.dataset.revealDone =
+            "true";
+
+          return;
+        }
+
+        gsap.set(self.lines, {
+          yPercent: 110
         });
 
-        textEl.dataset.revealDone = "true";
-        return;
-      }
+        const tween = gsap.to(
+          self.lines,
+          {
+            yPercent: 0,
+            stagger: 0.08,
+            ease: "expo.out",
+            duration: 1,
 
-      gsap.set(split.lines, {
-        yPercent: 110
-      });
+            scrollTrigger: {
+              trigger: textEl,
+              start: "top 85%",
+              once: true,
 
-      const tween = gsap.to(split.lines, {
-        yPercent: 0,
-        stagger: 0.08,
-        ease: "expo.out",
-        duration: 1,
-        scrollTrigger: {
-          trigger: textEl,
-          start: "top 85%",
-          once: true,
-          onEnter: () => {
-            textEl.dataset.revealDone = "true";
+              onEnter: () => {
+                textEl.dataset.revealDone =
+                  "true";
+              }
+            }
           }
-        }
-      });
+        );
 
-      revealAnimations.push(tween);
+        revealAnimations.push(tween);
+
+        /*
+         * SplitText usa esta animação para
+         * gerir automaticamente os re-splits.
+         */
+        return tween;
+      }
     });
 
-    revealElements.forEach((el) => {
-      const alreadyRevealed = el.dataset.revealDone === "true";
+    revealSplits.push(split);
+  });
 
-      if (alreadyRevealed || prefersReducedMotion) {
-        gsap.set(el, {
-          y: 0,
-          opacity: 1
-        });
+  /* =========================================================
+    ELEMENT REVEAL
+  ========================================================= */
 
-        el.dataset.revealDone = "true";
-        return;
-      }
+  revealElements.forEach((el) => {
+    const alreadyRevealed =
+      el.dataset.revealDone === "true";
 
-      const tween = gsap.from(el, {
-        y: 40,
-        opacity: 0,
-        ease: "expo.out",
-        duration: 1,
-        scrollTrigger: {
-          trigger: el,
-          start: "top 85%",
-          once: true,
-          onEnter: () => {
-            el.dataset.revealDone = "true";
-          }
-        }
+    if (
+      alreadyRevealed ||
+      prefersReducedMotion
+    ) {
+      gsap.set(el, {
+        y: 0,
+        opacity: 1
       });
 
-      revealAnimations.push(tween);
+      el.dataset.revealDone =
+        "true";
+
+      return;
+    }
+
+    const tween = gsap.from(el, {
+      y: 40,
+      opacity: 0,
+      ease: "expo.out",
+      duration: 1,
+
+      scrollTrigger: {
+        trigger: el,
+        start: "top 85%",
+        once: true,
+
+        onEnter: () => {
+          el.dataset.revealDone =
+            "true";
+        }
+      }
     });
 
-    revealInitialized = true;
-    refreshScrollTrigger();
-  }
+    revealAnimations.push(tween);
+  });
 
-  function refreshRevealOnResize() {
-    if (!revealInitialized) return;
-
-    clearTimeout(revealResizeTimer);
-
-    revealResizeTimer = setTimeout(() => {
-      initRevealOnScroll();
-    }, 250);
-  }
+  refreshScrollTrigger();
+}
     /* =========================================================
     CURSOR TRAIL — DESKTOP ONLY
   ========================================================= */
