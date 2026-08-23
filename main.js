@@ -248,23 +248,13 @@ function cleanupRevealOnScroll() {
 }
 
 /* =========================================================
-  CREATE SAFE INNER TARGET FOR RICH TEXT
+  CREATE SAFE INNER TARGET
 
-  IMPORTANT:
   SplitText nunca é aplicado diretamente ao <p>, <h2>, etc.
-
-  Estrutura:
-
-  <p>
-    <span data-text-reveal-inner>
-      Texto...
-    </span>
-  </p>
-
-  Assim o <p> mantém os margins originais do Webflow.
+  Assim os margins originais continuam intactos.
 ========================================================= */
 
-function createRichTextRevealTarget(block) {
+function createTextRevealInner(block) {
   let inner = block.querySelector(
     ":scope > [data-text-reveal-inner]"
   );
@@ -280,16 +270,8 @@ function createRichTextRevealTarget(block) {
     ""
   );
 
-  /*
-   * Block é importante para que o cálculo das linhas
-   * seja igual ao conteúdo original.
-   */
   inner.style.display = "block";
 
-  /*
-   * Move todo o conteúdo original para dentro do span,
-   * sem alterar o <p> exterior.
-   */
   while (block.firstChild) {
     inner.appendChild(block.firstChild);
   }
@@ -311,18 +293,31 @@ function getTextRevealElements(type) {
       `[data-text-reveal="${type}"]`
     )
     .forEach((element) => {
-      const isRichText =
-        element.classList.contains(
-          "w-richtext"
-        );
 
-      /* ===============================================
-        NORMAL ELEMENT
+      /*
+       * Procura blocos de texto diretos dentro do elemento.
+       * Isto funciona com Rich Text e também com outros containers.
+       */
+      const directBlocks = Array.from(
+        element.children
+      ).filter((child) => {
+        return [
+          "P",
+          "H1",
+          "H2",
+          "H3",
+          "H4",
+          "H5",
+          "H6",
+          "BLOCKQUOTE"
+        ].includes(child.tagName);
+      });
 
-        Continua exatamente como antes.
-      =============================================== */
-
-      if (!isRichText) {
+      /*
+       * Se NÃO tiver blocos internos,
+       * animamos o próprio elemento.
+       */
+      if (!directBlocks.length) {
         elements.push({
           target: element,
           trigger: element,
@@ -332,48 +327,47 @@ function getTextRevealElements(type) {
         return;
       }
 
-      /* ===============================================
-        WEBFLOW RICH TEXT
-      =============================================== */
-
-      const blocks =
-        element.querySelectorAll(
-          ":scope > p, " +
-          ":scope > h1, " +
-          ":scope > h2, " +
-          ":scope > h3, " +
-          ":scope > h4, " +
-          ":scope > h5, " +
-          ":scope > h6, " +
-          ":scope > ul > li, " +
-          ":scope > ol > li, " +
-          ":scope > blockquote > p"
-        );
-
-      blocks.forEach((block) => {
+      /*
+       * Se tiver vários blocos internos,
+       * animamos cada um individualmente.
+       */
+      directBlocks.forEach((block) => {
         const target =
-          createRichTextRevealTarget(
-            block
-          );
+          createTextRevealInner(block);
 
         elements.push({
-          /*
-           * SplitText atua apenas neste span.
-           */
           target,
-
-          /*
-           * ScrollTrigger continua a usar o bloco real.
-           */
           trigger: block,
-
-          /*
-           * Accessibility/data attributes ficam
-           * no elemento semântico original.
-           */
           semanticElement: block
         });
       });
+
+      /*
+       * Lists
+       */
+      Array.from(element.children).forEach(
+        (child) => {
+          if (
+            child.tagName !== "UL" &&
+            child.tagName !== "OL"
+          ) {
+            return;
+          }
+
+          child
+            .querySelectorAll(":scope > li")
+            .forEach((li) => {
+              const target =
+                createTextRevealInner(li);
+
+              elements.push({
+                target,
+                trigger: li,
+                semanticElement: li
+              });
+            });
+        }
+      );
     });
 
   return elements;
@@ -419,7 +413,7 @@ function initRevealOnScroll() {
 
     const originalText =
       semanticEl.dataset.originalText ||
-      semanticEl.textContent;
+      semanticEl.textContent.trim();
 
     semanticEl.dataset.originalText =
       originalText;
@@ -472,18 +466,13 @@ function initRevealOnScroll() {
       split.words,
       {
         yPercent: 0,
-
         stagger: 0.075,
-
         ease: "expo.out",
-
         duration: 1,
 
         scrollTrigger: {
           trigger: triggerEl,
-
           start: "top 85%",
-
           once: true,
 
           onEnter: () => {
@@ -509,7 +498,7 @@ function initRevealOnScroll() {
 
     const originalText =
       semanticEl.dataset.originalText ||
-      semanticEl.textContent;
+      semanticEl.textContent.trim();
 
     semanticEl.dataset.originalText =
       originalText;
@@ -562,18 +551,13 @@ function initRevealOnScroll() {
       split.lines,
       {
         yPercent: 0,
-
         stagger: 0.08,
-
         ease: "expo.out",
-
         duration: 1,
 
         scrollTrigger: {
           trigger: triggerEl,
-
           start: "top 85%",
-
           once: true,
 
           onEnter: () => {
@@ -613,18 +597,13 @@ function initRevealOnScroll() {
 
     const tween = gsap.from(el, {
       y: 40,
-
       opacity: 0,
-
       ease: "expo.out",
-
       duration: 1,
 
       scrollTrigger: {
         trigger: el,
-
         start: "top 85%",
-
         once: true,
 
         onEnter: () => {
