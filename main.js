@@ -236,6 +236,19 @@ function cleanupRevealOnScroll() {
   });
 
   revealSplits = [];
+
+  // Reaplica os espaçamentos originais depois do SplitText revert
+  document
+    .querySelectorAll("[data-reveal-margin-saved]")
+    .forEach((el) => {
+      if (el.dataset.revealMarginTop !== undefined) {
+        el.style.marginTop = el.dataset.revealMarginTop;
+      }
+
+      if (el.dataset.revealMarginBottom !== undefined) {
+        el.style.marginBottom = el.dataset.revealMarginBottom;
+      }
+    });
 }
 
 /**
@@ -257,11 +270,13 @@ function getTextRevealElements(type) {
     .forEach((element) => {
       const isRichText = element.classList.contains("w-richtext");
 
+      // Elemento normal
       if (!isRichText) {
         elements.push(element);
         return;
       }
 
+      // Elementos internos do Rich Text
       const richTextElements = element.querySelectorAll(
         ":scope > p, " +
         ":scope > h1, " +
@@ -276,6 +291,19 @@ function getTextRevealElements(type) {
       );
 
       richTextElements.forEach((child) => {
+        // Guarda os margins originais antes do SplitText
+        if (child.dataset.revealMarginSaved !== "true") {
+          const styles = window.getComputedStyle(child);
+
+          child.dataset.revealMarginTop = styles.marginTop;
+          child.dataset.revealMarginBottom = styles.marginBottom;
+          child.dataset.revealMarginSaved = "true";
+        }
+
+        // Reaplica explicitamente os margins
+        child.style.marginTop = child.dataset.revealMarginTop;
+        child.style.marginBottom = child.dataset.revealMarginBottom;
+
         elements.push(child);
       });
     });
@@ -297,6 +325,7 @@ function initRevealOnScroll() {
 
   const wordElements = getTextRevealElements("words");
   const lineElements = getTextRevealElements("lines");
+
   const revealElements = document.querySelectorAll(
     "[data-element-reveal]"
   );
