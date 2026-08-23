@@ -215,181 +215,253 @@
   }
 
   /* =========================================================
-    REVEAL ON SCROLL — RESIZE SAFE + ACCESSIBLE
-  ========================================================= */
+  REVEAL ON SCROLL — RESIZE SAFE + ACCESSIBLE
+========================================================= */
 
-  let revealResizeTimer;
-  let revealSplits = [];
-  let revealAnimations = [];
-  let revealInitialized = false;
+let revealResizeTimer;
+let revealSplits = [];
+let revealAnimations = [];
+let revealInitialized = false;
 
-  function cleanupRevealOnScroll() {
-    revealAnimations.forEach((tween) => {
-      if (tween.scrollTrigger) tween.scrollTrigger.kill();
-      tween.kill();
-    });
+function cleanupRevealOnScroll() {
+  revealAnimations.forEach((tween) => {
+    if (tween.scrollTrigger) tween.scrollTrigger.kill();
+    tween.kill();
+  });
 
-    revealAnimations = [];
+  revealAnimations = [];
 
-    revealSplits.forEach((split) => {
-      if (split && split.revert) split.revert();
-    });
+  revealSplits.forEach((split) => {
+    if (split && split.revert) split.revert();
+  });
 
-    revealSplits = [];
-  }
+  revealSplits = [];
+}
 
-  function initRevealOnScroll() {
-    if (!hasGSAP() || !hasPlugin("SplitText") || !hasPlugin("ScrollTrigger")) return;
+/**
+ * Expande data-text-reveal dentro de Rich Text.
+ *
+ * Exemplo:
+ * <div class="w-richtext" data-text-reveal="lines">
+ *   <p>...</p>
+ *   <p>...</p>
+ * </div>
+ *
+ * Em elementos normais, continua a animar o próprio elemento.
+ */
+function getTextRevealElements(type) {
+  const elements = [];
 
-    safeRegisterPlugins();
-    cleanupRevealOnScroll();
+  document
+    .querySelectorAll(`[data-text-reveal="${type}"]`)
+    .forEach((element) => {
+      const isRichText = element.classList.contains("w-richtext");
 
-    const wordElements = document.querySelectorAll('[data-text-reveal="words"]');
-    const lineElements = document.querySelectorAll('[data-text-reveal="lines"]');
-    const revealElements = document.querySelectorAll("[data-element-reveal]");
-
-    wordElements.forEach((textEl) => {
-      const originalText = textEl.dataset.originalText || textEl.textContent;
-      textEl.dataset.originalText = originalText;
-      textEl.setAttribute("aria-label", originalText);
-
-      const alreadyRevealed = textEl.dataset.revealDone === "true";
-
-      const split = new SplitText(textEl, {
-        type: "words",
-        mask: "words"
-      });
-
-      revealSplits.push(split);
-
-      split.words.forEach((word) => {
-        word.setAttribute("aria-hidden", "true");
-      });
-
-      if (alreadyRevealed || prefersReducedMotion) {
-        gsap.set(split.words, {
-          yPercent: 0
-        });
-
-        textEl.dataset.revealDone = "true";
+      if (!isRichText) {
+        elements.push(element);
         return;
       }
 
+      const richTextElements = element.querySelectorAll(
+        ":scope > p, " +
+        ":scope > h1, " +
+        ":scope > h2, " +
+        ":scope > h3, " +
+        ":scope > h4, " +
+        ":scope > h5, " +
+        ":scope > h6, " +
+        ":scope > blockquote, " +
+        ":scope > ul > li, " +
+        ":scope > ol > li"
+      );
+
+      richTextElements.forEach((child) => {
+        elements.push(child);
+      });
+    });
+
+  return elements;
+}
+
+function initRevealOnScroll() {
+  if (
+    !hasGSAP() ||
+    !hasPlugin("SplitText") ||
+    !hasPlugin("ScrollTrigger")
+  ) {
+    return;
+  }
+
+  safeRegisterPlugins();
+  cleanupRevealOnScroll();
+
+  const wordElements = getTextRevealElements("words");
+  const lineElements = getTextRevealElements("lines");
+  const revealElements = document.querySelectorAll(
+    "[data-element-reveal]"
+  );
+
+  /* =========================
+    WORD REVEAL
+  ========================= */
+
+  wordElements.forEach((textEl) => {
+    const originalText =
+      textEl.dataset.originalText || textEl.textContent;
+
+    textEl.dataset.originalText = originalText;
+    textEl.setAttribute("aria-label", originalText);
+
+    const alreadyRevealed =
+      textEl.dataset.revealDone === "true";
+
+    const split = new SplitText(textEl, {
+      type: "words",
+      mask: "words"
+    });
+
+    revealSplits.push(split);
+
+    split.words.forEach((word) => {
+      word.setAttribute("aria-hidden", "true");
+    });
+
+    if (alreadyRevealed || prefersReducedMotion) {
       gsap.set(split.words, {
-        yPercent: 110
+        yPercent: 0
       });
 
-      const tween = gsap.to(split.words, {
-        yPercent: 0,
-        stagger: 0.075,
-        ease: "expo.out",
-        duration: 1,
-        scrollTrigger: {
-          trigger: textEl,
-          start: "top 85%",
-          once: true,
-          onEnter: () => {
-            textEl.dataset.revealDone = "true";
-          }
-        }
-      });
+      textEl.dataset.revealDone = "true";
+      return;
+    }
 
-      revealAnimations.push(tween);
+    gsap.set(split.words, {
+      yPercent: 110
     });
 
-    lineElements.forEach((textEl) => {
-      const originalText = textEl.dataset.originalText || textEl.textContent;
-      textEl.dataset.originalText = originalText;
-      textEl.setAttribute("aria-label", originalText);
-
-      const alreadyRevealed = textEl.dataset.revealDone === "true";
-
-      const split = new SplitText(textEl, {
-        type: "lines",
-        mask: "lines"
-      });
-
-      revealSplits.push(split);
-
-      split.lines.forEach((line) => {
-        line.setAttribute("aria-hidden", "true");
-      });
-
-      if (alreadyRevealed || prefersReducedMotion) {
-        gsap.set(split.lines, {
-          yPercent: 0
-        });
-
-        textEl.dataset.revealDone = "true";
-        return;
+    const tween = gsap.to(split.words, {
+      yPercent: 0,
+      stagger: 0.075,
+      ease: "expo.out",
+      duration: 1,
+      scrollTrigger: {
+        trigger: textEl,
+        start: "top 85%",
+        once: true,
+        onEnter: () => {
+          textEl.dataset.revealDone = "true";
+        }
       }
+    });
 
+    revealAnimations.push(tween);
+  });
+
+  /* =========================
+    LINE REVEAL
+  ========================= */
+
+  lineElements.forEach((textEl) => {
+    const originalText =
+      textEl.dataset.originalText || textEl.textContent;
+
+    textEl.dataset.originalText = originalText;
+    textEl.setAttribute("aria-label", originalText);
+
+    const alreadyRevealed =
+      textEl.dataset.revealDone === "true";
+
+    const split = new SplitText(textEl, {
+      type: "lines",
+      mask: "lines"
+    });
+
+    revealSplits.push(split);
+
+    split.lines.forEach((line) => {
+      line.setAttribute("aria-hidden", "true");
+    });
+
+    if (alreadyRevealed || prefersReducedMotion) {
       gsap.set(split.lines, {
-        yPercent: 110
+        yPercent: 0
       });
 
-      const tween = gsap.to(split.lines, {
-        yPercent: 0,
-        stagger: 0.08,
-        ease: "expo.out",
-        duration: 1,
-        scrollTrigger: {
-          trigger: textEl,
-          start: "top 85%",
-          once: true,
-          onEnter: () => {
-            textEl.dataset.revealDone = "true";
-          }
-        }
-      });
+      textEl.dataset.revealDone = "true";
+      return;
+    }
 
-      revealAnimations.push(tween);
+    gsap.set(split.lines, {
+      yPercent: 110
     });
 
-    revealElements.forEach((el) => {
-      const alreadyRevealed = el.dataset.revealDone === "true";
-
-      if (alreadyRevealed || prefersReducedMotion) {
-        gsap.set(el, {
-          y: 0,
-          opacity: 1
-        });
-
-        el.dataset.revealDone = "true";
-        return;
+    const tween = gsap.to(split.lines, {
+      yPercent: 0,
+      stagger: 0.08,
+      ease: "expo.out",
+      duration: 1,
+      scrollTrigger: {
+        trigger: textEl,
+        start: "top 85%",
+        once: true,
+        onEnter: () => {
+          textEl.dataset.revealDone = "true";
+        }
       }
-
-      const tween = gsap.from(el, {
-        y: 40,
-        opacity: 0,
-        ease: "expo.out",
-        duration: 1,
-        scrollTrigger: {
-          trigger: el,
-          start: "top 85%",
-          once: true,
-          onEnter: () => {
-            el.dataset.revealDone = "true";
-          }
-        }
-      });
-
-      revealAnimations.push(tween);
     });
 
-    revealInitialized = true;
-    refreshScrollTrigger();
-  }
+    revealAnimations.push(tween);
+  });
 
-  function refreshRevealOnResize() {
-    if (!revealInitialized) return;
+  /* =========================
+    ELEMENT REVEAL
+  ========================= */
 
-    clearTimeout(revealResizeTimer);
+  revealElements.forEach((el) => {
+    const alreadyRevealed =
+      el.dataset.revealDone === "true";
 
-    revealResizeTimer = setTimeout(() => {
-      initRevealOnScroll();
-    }, 250);
-  }
+    if (alreadyRevealed || prefersReducedMotion) {
+      gsap.set(el, {
+        y: 0,
+        opacity: 1
+      });
+
+      el.dataset.revealDone = "true";
+      return;
+    }
+
+    const tween = gsap.from(el, {
+      y: 40,
+      opacity: 0,
+      ease: "expo.out",
+      duration: 1,
+      scrollTrigger: {
+        trigger: el,
+        start: "top 85%",
+        once: true,
+        onEnter: () => {
+          el.dataset.revealDone = "true";
+        }
+      }
+    });
+
+    revealAnimations.push(tween);
+  });
+
+  revealInitialized = true;
+  refreshScrollTrigger();
+}
+
+function refreshRevealOnResize() {
+  if (!revealInitialized) return;
+
+  clearTimeout(revealResizeTimer);
+
+  revealResizeTimer = setTimeout(() => {
+    initRevealOnScroll();
+  }, 250);
+}
     /* =========================================================
     CURSOR TRAIL — DESKTOP ONLY
   ========================================================= */
