@@ -223,93 +223,164 @@ let revealSplits = [];
 let revealAnimations = [];
 let revealInitialized = false;
 
+/* =========================================================
+  CLEANUP
+========================================================= */
+
 function cleanupRevealOnScroll() {
   revealAnimations.forEach((tween) => {
-    if (tween.scrollTrigger) tween.scrollTrigger.kill();
+    if (tween.scrollTrigger) {
+      tween.scrollTrigger.kill();
+    }
+
     tween.kill();
   });
 
   revealAnimations = [];
 
   revealSplits.forEach((split) => {
-    if (split && split.revert) split.revert();
+    if (split && split.revert) {
+      split.revert();
+    }
   });
 
   revealSplits = [];
-
-  // Reaplica os espaçamentos originais depois do SplitText revert
-  document
-    .querySelectorAll("[data-reveal-margin-saved]")
-    .forEach((el) => {
-      if (el.dataset.revealMarginTop !== undefined) {
-        el.style.marginTop = el.dataset.revealMarginTop;
-      }
-
-      if (el.dataset.revealMarginBottom !== undefined) {
-        el.style.marginBottom = el.dataset.revealMarginBottom;
-      }
-    });
 }
 
-/**
- * Expande data-text-reveal dentro de Rich Text.
- *
- * Exemplo:
- * <div class="w-richtext" data-text-reveal="lines">
- *   <p>...</p>
- *   <p>...</p>
- * </div>
- *
- * Em elementos normais, continua a animar o próprio elemento.
- */
+/* =========================================================
+  RICH TEXT PREPARATION
+
+  Cria um wrapper externo para cada bloco do Rich Text.
+  O espaçamento fica no wrapper e não é afetado pelo SplitText.
+========================================================= */
+
+function prepareRichTextReveal(element) {
+  const selector =
+    ":scope > p, " +
+    ":scope > h1, " +
+    ":scope > h2, " +
+    ":scope > h3, " +
+    ":scope > h4, " +
+    ":scope > h5, " +
+    ":scope > h6, " +
+    ":scope > blockquote, " +
+    ":scope > ul, " +
+    ":scope > ol";
+
+  const children = Array.from(
+    element.querySelectorAll(selector)
+  );
+
+  children.forEach((child) => {
+    // Já está preparado
+    if (
+      child.parentElement &&
+      child.parentElement.hasAttribute("data-text-reveal-wrap")
+    ) {
+      return;
+    }
+
+    const styles = window.getComputedStyle(child);
+
+    const marginTop = styles.marginTop;
+    const marginBottom = styles.marginBottom;
+
+    const wrapper = document.createElement("div");
+
+    wrapper.setAttribute("data-text-reveal-wrap", "");
+
+    /*
+     * O wrapper passa a controlar o espaçamento original.
+     */
+    wrapper.style.marginTop = marginTop;
+    wrapper.style.marginBottom = marginBottom;
+
+    /*
+     * Importante:
+     * não queremos que a margem do elemento original
+     * continue a participar no layout.
+     */
+    child.style.marginTop = "0";
+    child.style.marginBottom = "0";
+
+    child.parentNode.insertBefore(wrapper, child);
+    wrapper.appendChild(child);
+  });
+}
+
+/* =========================================================
+  GET REVEAL ELEMENTS
+========================================================= */
+
 function getTextRevealElements(type) {
   const elements = [];
 
   document
     .querySelectorAll(`[data-text-reveal="${type}"]`)
     .forEach((element) => {
-      const isRichText = element.classList.contains("w-richtext");
+      const isRichText =
+        element.classList.contains("w-richtext");
 
-      // Elemento normal
+      /* -------------------------
+        NORMAL ELEMENT
+      ------------------------- */
+
       if (!isRichText) {
         elements.push(element);
         return;
       }
 
-      // Elementos internos do Rich Text
-      const richTextElements = element.querySelectorAll(
-        ":scope > p, " +
-        ":scope > h1, " +
-        ":scope > h2, " +
-        ":scope > h3, " +
-        ":scope > h4, " +
-        ":scope > h5, " +
-        ":scope > h6, " +
-        ":scope > blockquote, " +
-        ":scope > ul > li, " +
-        ":scope > ol > li"
+      /* -------------------------
+        RICH TEXT
+      ------------------------- */
+
+      prepareRichTextReveal(element);
+
+      const wrappers = element.querySelectorAll(
+        ":scope > [data-text-reveal-wrap]"
       );
 
-      richTextElements.forEach((child) => {
-        // Guarda os margins originais antes do SplitText
-        if (child.dataset.revealMarginSaved !== "true") {
-          const styles = window.getComputedStyle(child);
+      wrappers.forEach((wrapper) => {
+        /*
+         * Paragraph / heading / blockquote
+         */
+        const directTextElement =
+          wrapper.querySelector(
+            ":scope > p, " +
+            ":scope > h1, " +
+            ":scope > h2, " +
+            ":scope > h3, " +
+            ":scope > h4, " +
+            ":scope > h5, " +
+            ":scope > h6, " +
+            ":scope > blockquote"
+          );
 
-          child.dataset.revealMarginTop = styles.marginTop;
-          child.dataset.revealMarginBottom = styles.marginBottom;
-          child.dataset.revealMarginSaved = "true";
+        if (directTextElement) {
+          elements.push(directTextElement);
+          return;
         }
 
-        // Reaplica explicitamente os margins
-        child.style.marginTop = child.dataset.revealMarginTop;
-        child.style.marginBottom = child.dataset.revealMarginBottom;
+        /*
+         * Lists
+         */
+        const listItems =
+          wrapper.querySelectorAll(
+            ":scope > ul > li, :scope > ol > li"
+          );
 
-        elements.push(child);
+        listItems.forEach((li) => {
+          elements.push(li);
+        });
       });
     });
 
   return elements;
 }
+
+/* =========================================================
+  INIT
+========================================================= */
 
 function initRevealOnScroll() {
   if (
@@ -321,25 +392,36 @@ function initRevealOnScroll() {
   }
 
   safeRegisterPlugins();
+
   cleanupRevealOnScroll();
 
-  const wordElements = getTextRevealElements("words");
-  const lineElements = getTextRevealElements("lines");
+  const wordElements =
+    getTextRevealElements("words");
 
-  const revealElements = document.querySelectorAll(
-    "[data-element-reveal]"
-  );
+  const lineElements =
+    getTextRevealElements("lines");
 
-  /* =========================
+  const revealElements =
+    document.querySelectorAll(
+      "[data-element-reveal]"
+    );
+
+  /* =========================================================
     WORD REVEAL
-  ========================= */
+  ========================================================= */
 
   wordElements.forEach((textEl) => {
     const originalText =
-      textEl.dataset.originalText || textEl.textContent;
+      textEl.dataset.originalText ||
+      textEl.textContent;
 
-    textEl.dataset.originalText = originalText;
-    textEl.setAttribute("aria-label", originalText);
+    textEl.dataset.originalText =
+      originalText;
+
+    textEl.setAttribute(
+      "aria-label",
+      originalText
+    );
 
     const alreadyRevealed =
       textEl.dataset.revealDone === "true";
@@ -352,15 +434,22 @@ function initRevealOnScroll() {
     revealSplits.push(split);
 
     split.words.forEach((word) => {
-      word.setAttribute("aria-hidden", "true");
+      word.setAttribute(
+        "aria-hidden",
+        "true"
+      );
     });
 
-    if (alreadyRevealed || prefersReducedMotion) {
+    if (
+      alreadyRevealed ||
+      prefersReducedMotion
+    ) {
       gsap.set(split.words, {
         yPercent: 0
       });
 
       textEl.dataset.revealDone = "true";
+
       return;
     }
 
@@ -368,34 +457,51 @@ function initRevealOnScroll() {
       yPercent: 110
     });
 
-    const tween = gsap.to(split.words, {
-      yPercent: 0,
-      stagger: 0.075,
-      ease: "expo.out",
-      duration: 1,
-      scrollTrigger: {
-        trigger: textEl,
-        start: "top 85%",
-        once: true,
-        onEnter: () => {
-          textEl.dataset.revealDone = "true";
+    const tween = gsap.to(
+      split.words,
+      {
+        yPercent: 0,
+        stagger: 0.075,
+        ease: "expo.out",
+        duration: 1,
+
+        scrollTrigger: {
+          trigger:
+            textEl.closest(
+              "[data-text-reveal-wrap]"
+            ) || textEl,
+
+          start: "top 85%",
+
+          once: true,
+
+          onEnter: () => {
+            textEl.dataset.revealDone =
+              "true";
+          }
         }
       }
-    });
+    );
 
     revealAnimations.push(tween);
   });
 
-  /* =========================
+  /* =========================================================
     LINE REVEAL
-  ========================= */
+  ========================================================= */
 
   lineElements.forEach((textEl) => {
     const originalText =
-      textEl.dataset.originalText || textEl.textContent;
+      textEl.dataset.originalText ||
+      textEl.textContent;
 
-    textEl.dataset.originalText = originalText;
-    textEl.setAttribute("aria-label", originalText);
+    textEl.dataset.originalText =
+      originalText;
+
+    textEl.setAttribute(
+      "aria-label",
+      originalText
+    );
 
     const alreadyRevealed =
       textEl.dataset.revealDone === "true";
@@ -408,15 +514,23 @@ function initRevealOnScroll() {
     revealSplits.push(split);
 
     split.lines.forEach((line) => {
-      line.setAttribute("aria-hidden", "true");
+      line.setAttribute(
+        "aria-hidden",
+        "true"
+      );
     });
 
-    if (alreadyRevealed || prefersReducedMotion) {
+    if (
+      alreadyRevealed ||
+      prefersReducedMotion
+    ) {
       gsap.set(split.lines, {
         yPercent: 0
       });
 
-      textEl.dataset.revealDone = "true";
+      textEl.dataset.revealDone =
+        "true";
+
       return;
     }
 
@@ -424,39 +538,59 @@ function initRevealOnScroll() {
       yPercent: 110
     });
 
-    const tween = gsap.to(split.lines, {
-      yPercent: 0,
-      stagger: 0.08,
-      ease: "expo.out",
-      duration: 1,
-      scrollTrigger: {
-        trigger: textEl,
-        start: "top 85%",
-        once: true,
-        onEnter: () => {
-          textEl.dataset.revealDone = "true";
+    const tween = gsap.to(
+      split.lines,
+      {
+        yPercent: 0,
+        stagger: 0.08,
+        ease: "expo.out",
+        duration: 1,
+
+        scrollTrigger: {
+          /*
+           * Para Rich Text usamos o wrapper como trigger.
+           * Para elementos normais usamos o próprio elemento.
+           */
+          trigger:
+            textEl.closest(
+              "[data-text-reveal-wrap]"
+            ) || textEl,
+
+          start: "top 85%",
+
+          once: true,
+
+          onEnter: () => {
+            textEl.dataset.revealDone =
+              "true";
+          }
         }
       }
-    });
+    );
 
     revealAnimations.push(tween);
   });
 
-  /* =========================
+  /* =========================================================
     ELEMENT REVEAL
-  ========================= */
+  ========================================================= */
 
   revealElements.forEach((el) => {
     const alreadyRevealed =
       el.dataset.revealDone === "true";
 
-    if (alreadyRevealed || prefersReducedMotion) {
+    if (
+      alreadyRevealed ||
+      prefersReducedMotion
+    ) {
       gsap.set(el, {
         y: 0,
         opacity: 1
       });
 
-      el.dataset.revealDone = "true";
+      el.dataset.revealDone =
+        "true";
+
       return;
     }
 
@@ -465,12 +599,15 @@ function initRevealOnScroll() {
       opacity: 0,
       ease: "expo.out",
       duration: 1,
+
       scrollTrigger: {
         trigger: el,
         start: "top 85%",
         once: true,
+
         onEnter: () => {
-          el.dataset.revealDone = "true";
+          el.dataset.revealDone =
+            "true";
         }
       }
     });
@@ -479,8 +616,13 @@ function initRevealOnScroll() {
   });
 
   revealInitialized = true;
+
   refreshScrollTrigger();
 }
+
+/* =========================================================
+  RESIZE
+========================================================= */
 
 function refreshRevealOnResize() {
   if (!revealInitialized) return;
