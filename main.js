@@ -214,7 +214,7 @@
     };
   }
 
-  /* =========================================================
+ /* =========================================================
   REVEAL ON SCROLL — RESIZE SAFE + ACCESSIBLE
 ========================================================= */
 
@@ -248,129 +248,130 @@ function cleanupRevealOnScroll() {
 }
 
 /* =========================================================
-  RICH TEXT PREPARATION
+  CREATE SAFE INNER TARGET FOR RICH TEXT
 
-  Cria um wrapper externo para cada bloco do Rich Text.
-  O espaçamento fica no wrapper e não é afetado pelo SplitText.
+  IMPORTANT:
+  SplitText nunca é aplicado diretamente ao <p>, <h2>, etc.
+
+  Estrutura:
+
+  <p>
+    <span data-text-reveal-inner>
+      Texto...
+    </span>
+  </p>
+
+  Assim o <p> mantém os margins originais do Webflow.
 ========================================================= */
 
-function prepareRichTextReveal(element) {
-  const selector =
-    ":scope > p, " +
-    ":scope > h1, " +
-    ":scope > h2, " +
-    ":scope > h3, " +
-    ":scope > h4, " +
-    ":scope > h5, " +
-    ":scope > h6, " +
-    ":scope > blockquote, " +
-    ":scope > ul, " +
-    ":scope > ol";
-
-  const children = Array.from(
-    element.querySelectorAll(selector)
+function createRichTextRevealTarget(block) {
+  let inner = block.querySelector(
+    ":scope > [data-text-reveal-inner]"
   );
 
-  children.forEach((child) => {
-    // Já está preparado
-    if (
-      child.parentElement &&
-      child.parentElement.hasAttribute("data-text-reveal-wrap")
-    ) {
-      return;
-    }
+  if (inner) {
+    return inner;
+  }
 
-    const styles = window.getComputedStyle(child);
+  inner = document.createElement("span");
 
-    const marginTop = styles.marginTop;
-    const marginBottom = styles.marginBottom;
+  inner.setAttribute(
+    "data-text-reveal-inner",
+    ""
+  );
 
-    const wrapper = document.createElement("div");
+  /*
+   * Block é importante para que o cálculo das linhas
+   * seja igual ao conteúdo original.
+   */
+  inner.style.display = "block";
 
-    wrapper.setAttribute("data-text-reveal-wrap", "");
+  /*
+   * Move todo o conteúdo original para dentro do span,
+   * sem alterar o <p> exterior.
+   */
+  while (block.firstChild) {
+    inner.appendChild(block.firstChild);
+  }
 
-    /*
-     * O wrapper passa a controlar o espaçamento original.
-     */
-    wrapper.style.marginTop = marginTop;
-    wrapper.style.marginBottom = marginBottom;
+  block.appendChild(inner);
 
-    /*
-     * Importante:
-     * não queremos que a margem do elemento original
-     * continue a participar no layout.
-     */
-    child.style.marginTop = "0";
-    child.style.marginBottom = "0";
-
-    child.parentNode.insertBefore(wrapper, child);
-    wrapper.appendChild(child);
-  });
+  return inner;
 }
 
 /* =========================================================
-  GET REVEAL ELEMENTS
+  GET TEXT REVEAL ELEMENTS
 ========================================================= */
 
 function getTextRevealElements(type) {
   const elements = [];
 
   document
-    .querySelectorAll(`[data-text-reveal="${type}"]`)
+    .querySelectorAll(
+      `[data-text-reveal="${type}"]`
+    )
     .forEach((element) => {
       const isRichText =
-        element.classList.contains("w-richtext");
+        element.classList.contains(
+          "w-richtext"
+        );
 
-      /* -------------------------
+      /* ===============================================
         NORMAL ELEMENT
-      ------------------------- */
+
+        Continua exatamente como antes.
+      =============================================== */
 
       if (!isRichText) {
-        elements.push(element);
+        elements.push({
+          target: element,
+          trigger: element,
+          semanticElement: element
+        });
+
         return;
       }
 
-      /* -------------------------
-        RICH TEXT
-      ------------------------- */
+      /* ===============================================
+        WEBFLOW RICH TEXT
+      =============================================== */
 
-      prepareRichTextReveal(element);
+      const blocks =
+        element.querySelectorAll(
+          ":scope > p, " +
+          ":scope > h1, " +
+          ":scope > h2, " +
+          ":scope > h3, " +
+          ":scope > h4, " +
+          ":scope > h5, " +
+          ":scope > h6, " +
+          ":scope > ul > li, " +
+          ":scope > ol > li, " +
+          ":scope > blockquote > p"
+        );
 
-      const wrappers = element.querySelectorAll(
-        ":scope > [data-text-reveal-wrap]"
-      );
-
-      wrappers.forEach((wrapper) => {
-        /*
-         * Paragraph / heading / blockquote
-         */
-        const directTextElement =
-          wrapper.querySelector(
-            ":scope > p, " +
-            ":scope > h1, " +
-            ":scope > h2, " +
-            ":scope > h3, " +
-            ":scope > h4, " +
-            ":scope > h5, " +
-            ":scope > h6, " +
-            ":scope > blockquote"
+      blocks.forEach((block) => {
+        const target =
+          createRichTextRevealTarget(
+            block
           );
 
-        if (directTextElement) {
-          elements.push(directTextElement);
-          return;
-        }
+        elements.push({
+          /*
+           * SplitText atua apenas neste span.
+           */
+          target,
 
-        /*
-         * Lists
-         */
-        const listItems =
-          wrapper.querySelectorAll(
-            ":scope > ul > li, :scope > ol > li"
-          );
+          /*
+           * ScrollTrigger continua a usar o bloco real.
+           */
+          trigger: block,
 
-        listItems.forEach((li) => {
-          elements.push(li);
+          /*
+           * Accessibility/data attributes ficam
+           * no elemento semântico original.
+           */
+          semanticElement: block
         });
       });
     });
@@ -410,26 +411,35 @@ function initRevealOnScroll() {
     WORD REVEAL
   ========================================================= */
 
-  wordElements.forEach((textEl) => {
-    const originalText =
-      textEl.dataset.originalText ||
-      textEl.textContent;
+  wordElements.forEach((item) => {
+    const textEl = item.target;
+    const triggerEl = item.trigger;
+    const semanticEl =
+      item.semanticElement;
 
-    textEl.dataset.originalText =
+    const originalText =
+      semanticEl.dataset.originalText ||
+      semanticEl.textContent;
+
+    semanticEl.dataset.originalText =
       originalText;
 
-    textEl.setAttribute(
+    semanticEl.setAttribute(
       "aria-label",
       originalText
     );
 
     const alreadyRevealed =
-      textEl.dataset.revealDone === "true";
+      semanticEl.dataset.revealDone ===
+      "true";
 
-    const split = new SplitText(textEl, {
-      type: "words",
-      mask: "words"
-    });
+    const split = new SplitText(
+      textEl,
+      {
+        type: "words",
+        mask: "words"
+      }
+    );
 
     revealSplits.push(split);
 
@@ -448,7 +458,8 @@ function initRevealOnScroll() {
         yPercent: 0
       });
 
-      textEl.dataset.revealDone = "true";
+      semanticEl.dataset.revealDone =
+        "true";
 
       return;
     }
@@ -461,22 +472,22 @@ function initRevealOnScroll() {
       split.words,
       {
         yPercent: 0,
+
         stagger: 0.075,
+
         ease: "expo.out",
+
         duration: 1,
 
         scrollTrigger: {
-          trigger:
-            textEl.closest(
-              "[data-text-reveal-wrap]"
-            ) || textEl,
+          trigger: triggerEl,
 
           start: "top 85%",
 
           once: true,
 
           onEnter: () => {
-            textEl.dataset.revealDone =
+            semanticEl.dataset.revealDone =
               "true";
           }
         }
@@ -490,26 +501,35 @@ function initRevealOnScroll() {
     LINE REVEAL
   ========================================================= */
 
-  lineElements.forEach((textEl) => {
-    const originalText =
-      textEl.dataset.originalText ||
-      textEl.textContent;
+  lineElements.forEach((item) => {
+    const textEl = item.target;
+    const triggerEl = item.trigger;
+    const semanticEl =
+      item.semanticElement;
 
-    textEl.dataset.originalText =
+    const originalText =
+      semanticEl.dataset.originalText ||
+      semanticEl.textContent;
+
+    semanticEl.dataset.originalText =
       originalText;
 
-    textEl.setAttribute(
+    semanticEl.setAttribute(
       "aria-label",
       originalText
     );
 
     const alreadyRevealed =
-      textEl.dataset.revealDone === "true";
+      semanticEl.dataset.revealDone ===
+      "true";
 
-    const split = new SplitText(textEl, {
-      type: "lines",
-      mask: "lines"
-    });
+    const split = new SplitText(
+      textEl,
+      {
+        type: "lines",
+        mask: "lines"
+      }
+    );
 
     revealSplits.push(split);
 
@@ -528,7 +548,7 @@ function initRevealOnScroll() {
         yPercent: 0
       });
 
-      textEl.dataset.revealDone =
+      semanticEl.dataset.revealDone =
         "true";
 
       return;
@@ -542,26 +562,22 @@ function initRevealOnScroll() {
       split.lines,
       {
         yPercent: 0,
+
         stagger: 0.08,
+
         ease: "expo.out",
+
         duration: 1,
 
         scrollTrigger: {
-          /*
-           * Para Rich Text usamos o wrapper como trigger.
-           * Para elementos normais usamos o próprio elemento.
-           */
-          trigger:
-            textEl.closest(
-              "[data-text-reveal-wrap]"
-            ) || textEl,
+          trigger: triggerEl,
 
           start: "top 85%",
 
           once: true,
 
           onEnter: () => {
-            textEl.dataset.revealDone =
+            semanticEl.dataset.revealDone =
               "true";
           }
         }
@@ -577,7 +593,8 @@ function initRevealOnScroll() {
 
   revealElements.forEach((el) => {
     const alreadyRevealed =
-      el.dataset.revealDone === "true";
+      el.dataset.revealDone ===
+      "true";
 
     if (
       alreadyRevealed ||
@@ -596,13 +613,18 @@ function initRevealOnScroll() {
 
     const tween = gsap.from(el, {
       y: 40,
+
       opacity: 0,
+
       ease: "expo.out",
+
       duration: 1,
 
       scrollTrigger: {
         trigger: el,
+
         start: "top 85%",
+
         once: true,
 
         onEnter: () => {
@@ -625,13 +647,18 @@ function initRevealOnScroll() {
 ========================================================= */
 
 function refreshRevealOnResize() {
-  if (!revealInitialized) return;
+  if (!revealInitialized) {
+    return;
+  }
 
-  clearTimeout(revealResizeTimer);
+  clearTimeout(
+    revealResizeTimer
+  );
 
-  revealResizeTimer = setTimeout(() => {
-    initRevealOnScroll();
-  }, 250);
+  revealResizeTimer =
+    setTimeout(() => {
+      initRevealOnScroll();
+    }, 250);
 }
     /* =========================================================
     CURSOR TRAIL — DESKTOP ONLY
