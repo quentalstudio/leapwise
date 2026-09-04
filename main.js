@@ -1771,354 +1771,513 @@ function initStackingCardsParallax() {
 }
   
   
-  /* =========================================================
-    OVERLAPPING SLIDER — MOBILE NATIVE / DESKTOP DRAGGABLE
-  ========================================================= */
 
-  function initOverlappingSlider() {
-    const inits = document.querySelectorAll("[data-overlap-slider-init]");
-    if (!inits.length) return;
+/* =========================================================
+  OVERLAPPING SLIDER — MOBILE NATIVE / DESKTOP DRAGGABLE
+========================================================= */
 
-    const isMobile = isMobilePerformanceMode();
+function initOverlappingSlider() {
+  const inits = document.querySelectorAll("[data-overlap-slider-init]");
+  if (!inits.length) return;
 
-    inits.forEach((init) => {
-      if (isMobile || prefersReducedMotion || !hasPlugin("Draggable")) {
-        setupMobileOverlappingSlider(init);
-      } else {
-        setupDesktopOverlappingSlider(init);
-      }
-    });
-  }
+  const isMobile = isMobilePerformanceMode();
 
-  function getOverlapSliderButtons(init) {
-    const sliderId = init.getAttribute("id");
-
-    let prevBtn = null;
-    let nextBtn = null;
-
-    if (sliderId) {
-      prevBtn = document.querySelector(
-        `[data-overlap-slider-prev][data-overlap-slider-target="${sliderId}"]`
-      );
-
-      nextBtn = document.querySelector(
-        `[data-overlap-slider-next][data-overlap-slider-target="${sliderId}"]`
-      );
+  inits.forEach((init) => {
+    if (isMobile || prefersReducedMotion || !hasPlugin("Draggable")) {
+      setupMobileOverlappingSlider(init);
+    } else {
+      setupDesktopOverlappingSlider(init);
     }
+  });
+}
 
-    if (!prevBtn) prevBtn = init.querySelector("[data-overlap-slider-prev]");
-    if (!nextBtn) nextBtn = init.querySelector("[data-overlap-slider-next]");
+function getOverlapSliderButtons(init) {
+  const sliderId = init.getAttribute("id");
 
-    return {
-      prevBtn,
-      nextBtn
-    };
-  }
+  let prevBtn = null;
+  let nextBtn = null;
 
-  function setupMobileOverlappingSlider(init) {
-    const wrap = init.querySelector("[data-overlap-slider-collection]");
-    const slider = init.querySelector("[data-overlap-slider-list]");
-    const slides = Array.from(init.querySelectorAll("[data-overlap-slider-item]"));
-
-    const { prevBtn, nextBtn } = getOverlapSliderButtons(init);
-
-    if (!wrap || !slider || !slides.length) return;
-
-    wrap.style.touchAction = "pan-y";
-    wrap.style.userSelect = "";
-
-    if (hasGSAP()) {
-      gsap.set(slider, {
-        clearProps: "x"
-      });
-
-      gsap.set(slides, {
-        clearProps: "x,scale,rotation,opacity,transformOrigin"
-      });
-    }
-
-    let currentIndex = 0;
-
-    function updateButtons() {
-      if (prevBtn) {
-        prevBtn.disabled = currentIndex <= 0;
-        prevBtn.setAttribute("aria-disabled", currentIndex <= 0 ? "true" : "false");
-      }
-
-      if (nextBtn) {
-        nextBtn.disabled = currentIndex >= slides.length - 1;
-        nextBtn.setAttribute(
-          "aria-disabled",
-          currentIndex >= slides.length - 1 ? "true" : "false"
-        );
-      }
-
-      wrap.setAttribute("aria-label", `Slide ${currentIndex + 1} of ${slides.length}`);
-    }
-
-    function goToSlide(index) {
-      currentIndex = Math.max(0, Math.min(index, slides.length - 1));
-
-      const target = slides[currentIndex];
-      if (!target) return;
-
-      target.scrollIntoView({
-        behavior: prefersReducedMotion ? "auto" : "smooth",
-        inline: "center",
-        block: "nearest"
-      });
-
-      updateButtons();
-    }
-
-    if (prevBtn) {
-      prevBtn.addEventListener("click", () => {
-        goToSlide(currentIndex - 1);
-      });
-    }
-
-    if (nextBtn) {
-      nextBtn.addEventListener("click", () => {
-        goToSlide(currentIndex + 1);
-      });
-    }
-
-    wrap.setAttribute("role", "region");
-    wrap.setAttribute("aria-roledescription", "carousel");
-
-    if (hasGSAP() && hasPlugin("ScrollTrigger") && !prefersReducedMotion) {
-      safeRegisterPlugins();
-
-      gsap.from(slides, {
-        y: 32,
-        autoAlpha: 0,
-        stagger: 0.08,
-        ease: "expo.out",
-        duration: 0.8,
-        scrollTrigger: {
-          trigger: init,
-          start: "top 88%",
-          once: true
-        }
-      });
-    }
-
-    updateButtons();
-  }
-
-  function setupDesktopOverlappingSlider(init) {
-    if (!hasGSAP() || !hasPlugin("Draggable")) return;
-
-    safeRegisterPlugins();
-
-    const minScale = +(init.getAttribute("data-scale") ?? 0.45);
-    const maxRotation = +(init.getAttribute("data-rotate") ?? -8);
-    const minOpacity = +(init.getAttribute("data-opacity") ?? 0.55);
-    const inertia = true;
-
-    const wrap = init.querySelector("[data-overlap-slider-collection]");
-    const slider = init.querySelector("[data-overlap-slider-list]");
-    const slides = Array.from(init.querySelectorAll("[data-overlap-slider-item]"));
-
-    const { prevBtn, nextBtn } = getOverlapSliderButtons(init);
-
-    if (!wrap || !slider || !slides.length) return;
-
-    wrap.style.touchAction = "none";
-    wrap.style.userSelect = "none";
-
-    let spacing = 0;
-    let maxDrag = 0;
-    let dragX = 0;
-    let draggable;
-    let active = false;
-    let currentIndex = 0;
-
-    function clamp(value) {
-      if (maxDrag <= 0) return 0;
-      return Math.min(Math.max(value, 0), maxDrag);
-    }
-
-    function updateButtons() {
-      if (prevBtn) {
-        prevBtn.disabled = currentIndex <= 0;
-        prevBtn.setAttribute("aria-disabled", currentIndex <= 0 ? "true" : "false");
-      }
-
-      if (nextBtn) {
-        nextBtn.disabled = currentIndex >= slides.length - 1;
-        nextBtn.setAttribute(
-          "aria-disabled",
-          currentIndex >= slides.length - 1 ? "true" : "false"
-        );
-      }
-    }
-
-    function updateCurrentIndex() {
-      currentIndex = spacing > 0 ? Math.round(dragX / spacing) : 0;
-      currentIndex = Math.max(0, Math.min(currentIndex, slides.length - 1));
-
-      updateButtons();
-      wrap.setAttribute("aria-label", `Slide ${currentIndex + 1} of ${slides.length}`);
-    }
-
-    function update() {
-      gsap.set(slider, {
-        x: -dragX
-      });
-
-      slides.forEach((slide, i) => {
-        const threshold = i * spacing;
-        const local = Math.max(0, dragX - threshold);
-        const t = spacing > 0 ? Math.min(local / spacing, 1) : 0;
-
-        gsap.set(slide, {
-          x: local,
-          scale: 1 - (1 - minScale) * t,
-          rotation: maxRotation * t,
-          opacity: 1 - (1 - minOpacity) * t,
-          transformOrigin: "75% center"
-        });
-      });
-
-      updateCurrentIndex();
-    }
-
-    function goToSlide(idx) {
-      idx = Math.max(0, Math.min(idx, slides.length - 1));
-      currentIndex = idx;
-
-      const targetX = idx * spacing;
-
-      gsap.to(
-        {
-          value: dragX
-        },
-        {
-          value: targetX,
-          duration: 0.35,
-          ease: "power4.out",
-          onUpdate: function () {
-            dragX = clamp(this.targets()[0].value);
-            gsap.set(slider, {
-              x: -dragX
-            });
-            update();
-          },
-          onComplete: function () {
-            dragX = clamp(targetX);
-            update();
-          }
-        }
-      );
-    }
-
-    function recalc() {
-      if (!slides.length) return;
-
-      const style = getComputedStyle(slides[0]);
-      const gapRight = parseFloat(style.marginRight) || 0;
-      const slideW = slides[0].offsetWidth;
-
-      spacing = slideW + gapRight;
-      maxDrag = spacing * (slides.length - 1);
-
-      dragX = clamp(dragX);
-      update();
-
-      if (draggable) {
-        draggable.applyBounds({
-          minX: -maxDrag,
-          maxX: 0
-        });
-      }
-    }
-
-    draggable = Draggable.create(slider, {
-      type: "x",
-      bounds: {
-        minX: -maxDrag,
-        maxX: 0
-      },
-      inertia,
-      maxDuration: 1,
-      snap: (raw) => {
-        const d = clamp(-raw);
-        const idx = spacing > 0 ? Math.round(d / spacing) : 0;
-        return -idx * spacing;
-      },
-
-      onDrag() {
-        dragX = clamp(-this.x);
-        update();
-      },
-
-      onThrowUpdate() {
-        dragX = clamp(-this.x);
-        update();
-      },
-
-      onThrowComplete() {
-        updateCurrentIndex();
-      },
-
-      onDragEnd() {
-        updateCurrentIndex();
-      }
-    })[0];
-
-    if (prevBtn) {
-      prevBtn.addEventListener("click", function () {
-        goToSlide(currentIndex - 1);
-      });
-    }
-
-    if (nextBtn) {
-      nextBtn.addEventListener("click", function () {
-        goToSlide(currentIndex + 1);
-      });
-    }
-
-    const ro = new ResizeObserver(() => {
-      recalc();
-    });
-
-    ro.observe(init);
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        active = entries[0].isIntersecting;
-      },
-      {
-        threshold: 0.25
-      }
+  if (sliderId) {
+    prevBtn = document.querySelector(
+      `[data-overlap-slider-prev][data-overlap-slider-target="${sliderId}"]`
     );
 
-    io.observe(init);
+    nextBtn = document.querySelector(
+      `[data-overlap-slider-next][data-overlap-slider-target="${sliderId}"]`
+    );
+  }
 
-    wrap.setAttribute("role", "region");
-    wrap.setAttribute("aria-roledescription", "carousel");
-    wrap.setAttribute("aria-label", `Slide 1 of ${slides.length}`);
+  if (!prevBtn) prevBtn = init.querySelector("[data-overlap-slider-prev]");
+  if (!nextBtn) nextBtn = init.querySelector("[data-overlap-slider-next]");
 
-    function onKey(e) {
-      if (!active) return;
+  return {
+    prevBtn,
+    nextBtn
+  };
+}
 
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        goToSlide(currentIndex - 1);
-      }
+function getOverlapSliderProgress(init) {
+  const sliderId = init.getAttribute("id");
 
-      if (e.key === "ArrowRight") {
-        e.preventDefault();
-        goToSlide(currentIndex + 1);
-      }
+  let progressBar = null;
+
+  if (sliderId) {
+    progressBar = document.querySelector(
+      `[data-overlap-slider-progress][data-overlap-slider-target="${sliderId}"]`
+    );
+  }
+
+  if (!progressBar) {
+    progressBar = init.querySelector("[data-overlap-slider-progress]");
+  }
+
+  return progressBar;
+}
+
+function setupMobileOverlappingSlider(init) {
+  const wrap = init.querySelector("[data-overlap-slider-collection]");
+  const slider = init.querySelector("[data-overlap-slider-list]");
+  const slides = Array.from(
+    init.querySelectorAll("[data-overlap-slider-item]")
+  );
+
+  const { prevBtn, nextBtn } = getOverlapSliderButtons(init);
+  const progressBar = getOverlapSliderProgress(init);
+
+  if (!wrap || !slider || !slides.length) return;
+
+  wrap.style.touchAction = "pan-y";
+  wrap.style.userSelect = "";
+
+  if (hasGSAP()) {
+    gsap.set(slider, {
+      clearProps: "x"
+    });
+
+    gsap.set(slides, {
+      clearProps: "x,scale,rotation,opacity,transformOrigin"
+    });
+  }
+
+  let currentIndex = 0;
+
+  function updateProgress() {
+    if (!progressBar) return;
+
+    const progress =
+      slides.length > 1
+        ? (currentIndex + 1) / slides.length
+        : 1;
+
+    if (hasGSAP()) {
+      gsap.to(progressBar, {
+        scaleX: progress,
+        duration: prefersReducedMotion ? 0 : 0.35,
+        ease: "power3.out",
+        transformOrigin: "left center",
+        overwrite: true
+      });
+    } else {
+      progressBar.style.transformOrigin = "left center";
+      progressBar.style.transform = `scaleX(${progress})`;
     }
 
-    window.addEventListener("keydown", onKey);
+    const progressParent = progressBar.parentElement;
 
-    recalc();
+    if (
+      progressParent &&
+      progressParent.getAttribute("role") === "progressbar"
+    ) {
+      progressParent.setAttribute(
+        "aria-valuenow",
+        String(Math.round(progress * 100))
+      );
+    }
+  }
+
+  function updateButtons() {
+    if (prevBtn) {
+      prevBtn.disabled = currentIndex <= 0;
+      prevBtn.setAttribute(
+        "aria-disabled",
+        currentIndex <= 0 ? "true" : "false"
+      );
+    }
+
+    if (nextBtn) {
+      nextBtn.disabled = currentIndex >= slides.length - 1;
+      nextBtn.setAttribute(
+        "aria-disabled",
+        currentIndex >= slides.length - 1 ? "true" : "false"
+      );
+    }
+
+    wrap.setAttribute(
+      "aria-label",
+      `Slide ${currentIndex + 1} of ${slides.length}`
+    );
+
+    updateProgress();
+  }
+
+  function goToSlide(index) {
+    currentIndex = Math.max(
+      0,
+      Math.min(index, slides.length - 1)
+    );
+
+    const target = slides[currentIndex];
+    if (!target) return;
+
+    target.scrollIntoView({
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+      inline: "center",
+      block: "nearest"
+    });
+
     updateButtons();
   }
+
+  if (prevBtn) {
+    prevBtn.addEventListener("click", () => {
+      goToSlide(currentIndex - 1);
+    });
+  }
+
+  if (nextBtn) {
+    nextBtn.addEventListener("click", () => {
+      goToSlide(currentIndex + 1);
+    });
+  }
+
+  wrap.setAttribute("role", "region");
+  wrap.setAttribute("aria-roledescription", "carousel");
+
+  if (
+    hasGSAP() &&
+    hasPlugin("ScrollTrigger") &&
+    !prefersReducedMotion
+  ) {
+    safeRegisterPlugins();
+
+    gsap.from(slides, {
+      y: 32,
+      autoAlpha: 0,
+      stagger: 0.08,
+      ease: "expo.out",
+      duration: 0.8,
+      scrollTrigger: {
+        trigger: init,
+        start: "top 88%",
+        once: true
+      }
+    });
+  }
+
+  updateButtons();
+}
+
+function setupDesktopOverlappingSlider(init) {
+  if (!hasGSAP() || !hasPlugin("Draggable")) return;
+
+  safeRegisterPlugins();
+
+  const minScale = +(init.getAttribute("data-scale") ?? 0.45);
+  const maxRotation = +(init.getAttribute("data-rotate") ?? -8);
+  const minOpacity = +(init.getAttribute("data-opacity") ?? 0.55);
+  const inertia = true;
+
+  const wrap = init.querySelector("[data-overlap-slider-collection]");
+  const slider = init.querySelector("[data-overlap-slider-list]");
+  const slides = Array.from(
+    init.querySelectorAll("[data-overlap-slider-item]")
+  );
+
+  const { prevBtn, nextBtn } = getOverlapSliderButtons(init);
+  const progressBar = getOverlapSliderProgress(init);
+
+  if (!wrap || !slider || !slides.length) return;
+
+  wrap.style.touchAction = "none";
+  wrap.style.userSelect = "none";
+
+  let spacing = 0;
+  let maxDrag = 0;
+  let dragX = 0;
+  let draggable;
+  let active = false;
+  let currentIndex = 0;
+
+  function clamp(value) {
+    if (maxDrag <= 0) return 0;
+
+    return Math.min(
+      Math.max(value, 0),
+      maxDrag
+    );
+  }
+
+  function updateProgress() {
+    if (!progressBar) return;
+
+    const progress =
+      slides.length > 1 && spacing > 0
+        ? gsap.utils.clamp(
+            0,
+            1,
+            (1 + dragX / spacing) / slides.length
+          )
+        : 1;
+
+    gsap.set(progressBar, {
+      scaleX: progress,
+      transformOrigin: "left center"
+    });
+
+    const progressParent = progressBar.parentElement;
+
+    if (
+      progressParent &&
+      progressParent.getAttribute("role") === "progressbar"
+    ) {
+      progressParent.setAttribute(
+        "aria-valuenow",
+        String(Math.round(progress * 100))
+      );
+    }
+  }
+
+  function updateButtons() {
+    if (prevBtn) {
+      prevBtn.disabled = currentIndex <= 0;
+      prevBtn.setAttribute(
+        "aria-disabled",
+        currentIndex <= 0 ? "true" : "false"
+      );
+    }
+
+    if (nextBtn) {
+      nextBtn.disabled = currentIndex >= slides.length - 1;
+      nextBtn.setAttribute(
+        "aria-disabled",
+        currentIndex >= slides.length - 1 ? "true" : "false"
+      );
+    }
+  }
+
+  function updateCurrentIndex() {
+    currentIndex =
+      spacing > 0
+        ? Math.round(dragX / spacing)
+        : 0;
+
+    currentIndex = Math.max(
+      0,
+      Math.min(currentIndex, slides.length - 1)
+    );
+
+    updateButtons();
+
+    wrap.setAttribute(
+      "aria-label",
+      `Slide ${currentIndex + 1} of ${slides.length}`
+    );
+  }
+
+  function update() {
+    gsap.set(slider, {
+      x: -dragX
+    });
+
+    slides.forEach((slide, i) => {
+      const threshold = i * spacing;
+      const local = Math.max(0, dragX - threshold);
+
+      const t =
+        spacing > 0
+          ? Math.min(local / spacing, 1)
+          : 0;
+
+      gsap.set(slide, {
+        x: local,
+        scale: 1 - (1 - minScale) * t,
+        rotation: maxRotation * t,
+        opacity: 1 - (1 - minOpacity) * t,
+        transformOrigin: "75% center"
+      });
+    });
+
+    updateProgress();
+    updateCurrentIndex();
+  }
+
+  function goToSlide(idx) {
+    idx = Math.max(
+      0,
+      Math.min(idx, slides.length - 1)
+    );
+
+    currentIndex = idx;
+
+    const targetX = idx * spacing;
+
+    const proxy = {
+      value: dragX
+    };
+
+    gsap.to(proxy, {
+      value: targetX,
+      duration: 0.35,
+      ease: "power4.out",
+
+      onUpdate() {
+        dragX = clamp(proxy.value);
+
+        if (draggable) {
+          draggable.x = -dragX;
+          draggable.update();
+        }
+
+        update();
+      },
+
+      onComplete() {
+        dragX = clamp(targetX);
+
+        if (draggable) {
+          draggable.x = -dragX;
+          draggable.update();
+        }
+
+        update();
+      }
+    });
+  }
+
+  function recalc() {
+    if (!slides.length) return;
+
+    const style = getComputedStyle(slides[0]);
+    const gapRight = parseFloat(style.marginRight) || 0;
+    const slideW = slides[0].offsetWidth;
+
+    spacing = slideW + gapRight;
+    maxDrag = spacing * (slides.length - 1);
+
+    dragX = clamp(dragX);
+
+    if (draggable) {
+      draggable.applyBounds({
+        minX: -maxDrag,
+        maxX: 0
+      });
+
+      draggable.x = -dragX;
+      draggable.update();
+    }
+
+    update();
+  }
+
+  draggable = Draggable.create(slider, {
+    type: "x",
+
+    bounds: {
+      minX: -maxDrag,
+      maxX: 0
+    },
+
+    inertia,
+    maxDuration: 1,
+
+    snap: (raw) => {
+      const d = clamp(-raw);
+
+      const idx =
+        spacing > 0
+          ? Math.round(d / spacing)
+          : 0;
+
+      return -idx * spacing;
+    },
+
+    onDrag() {
+      dragX = clamp(-this.x);
+      update();
+    },
+
+    onThrowUpdate() {
+      dragX = clamp(-this.x);
+      update();
+    },
+
+    onThrowComplete() {
+      dragX = clamp(-this.x);
+      update();
+    },
+
+    onDragEnd() {
+      dragX = clamp(-this.x);
+      update();
+    }
+  })[0];
+
+  if (prevBtn) {
+    prevBtn.addEventListener("click", () => {
+      goToSlide(currentIndex - 1);
+    });
+  }
+
+  if (nextBtn) {
+    nextBtn.addEventListener("click", () => {
+      goToSlide(currentIndex + 1);
+    });
+  }
+
+  const ro = new ResizeObserver(() => {
+    recalc();
+  });
+
+  ro.observe(init);
+
+  const io = new IntersectionObserver(
+    (entries) => {
+      active = entries[0].isIntersecting;
+    },
+    {
+      threshold: 0.25
+    }
+  );
+
+  io.observe(init);
+
+  wrap.setAttribute("role", "region");
+  wrap.setAttribute("aria-roledescription", "carousel");
+  wrap.setAttribute(
+    "aria-label",
+    `Slide 1 of ${slides.length}`
+  );
+
+  function onKey(e) {
+    if (!active) return;
+
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      goToSlide(currentIndex - 1);
+    }
+
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      goToSlide(currentIndex + 1);
+    }
+  }
+
+  window.addEventListener("keydown", onKey);
+
+  recalc();
+  updateButtons();
+}
+
 
   /* =========================================================
     FAQ
