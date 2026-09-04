@@ -1628,108 +1628,150 @@ function initRevealOnScroll() {
     });
   }
 
-  /* =========================================================
-    STACKING CARDS — MOBILE LIGHT / DESKTOP FULL
-  ========================================================= */
+/* =========================================================
+  STACKING CARDS — MOBILE LIGHT / DESKTOP FULL
+========================================================= */
 
-  function initStackingCardsParallax() {
-    if (!hasGSAP() || !hasPlugin("ScrollTrigger")) return;
+function initStackingCardsParallax() {
+  if (!hasGSAP() || !hasPlugin("ScrollTrigger")) return;
 
-    safeRegisterPlugins();
+  safeRegisterPlugins();
 
-    const cards = document.querySelectorAll("[data-stacking-cards-item]");
-    if (cards.length < 2) return;
+  const cards = document.querySelectorAll("[data-stacking-cards-item]");
+  if (cards.length < 2) return;
 
-    const isMobile = isMobilePerformanceMode();
+  const isMobile = isMobilePerformanceMode();
 
-    if (isMobile || prefersReducedMotion) {
-      cards.forEach((card) => {
-        const img = card.querySelector("[data-stacking-cards-img]");
+  if (isMobile || prefersReducedMotion) {
+    cards.forEach((card) => {
+      const img = card.querySelector("[data-stacking-cards-img]");
 
-        gsap.set(card, {
-          y: prefersReducedMotion ? 0 : 40,
-          autoAlpha: prefersReducedMotion ? 1 : 0
-        });
-
-        if (img) {
-          gsap.set(img, {
-            scale: prefersReducedMotion ? 1 : 1.04
-          });
-        }
-
-        if (prefersReducedMotion) return;
-
-        const tl = gsap.timeline({
-          scrollTrigger: {
-            trigger: card,
-            start: "top 88%",
-            once: true
-          }
-        });
-
-        tl.to(card, {
-          y: 0,
-          autoAlpha: 1,
-          ease: "expo.out",
-          duration: 0.8
-        });
-
-        if (img) {
-          tl.to(
-            img,
-            {
-              scale: 1,
-              ease: "expo.out",
-              duration: 1
-            },
-            "<"
-          );
-        }
+      gsap.set(card, {
+        y: prefersReducedMotion ? 0 : 40,
+        autoAlpha: prefersReducedMotion ? 1 : 0
       });
 
-      return;
-    }
+      if (img) {
+        gsap.set(img, {
+          scale: prefersReducedMotion ? 1 : 1.04
+        });
+      }
 
-    cards.forEach((card, i) => {
-      if (i === 0) return;
-
-      const previousCard = cards[i - 1];
-      if (!previousCard) return;
-
-      const previousCardImage = previousCard.querySelector("[data-stacking-cards-img]");
+      if (prefersReducedMotion) return;
 
       const tl = gsap.timeline({
-        defaults: {
-          ease: "none",
-          duration: 1
-        },
         scrollTrigger: {
           trigger: card,
-          start: "top bottom",
-          end: "top top",
-          scrub: true,
-          invalidateOnRefresh: true
+          start: "top 88%",
+          once: true
         }
       });
 
-      tl.fromTo(previousCard, { yPercent: 0 }, { yPercent: 50 });
+      tl.to(card, {
+        y: 0,
+        autoAlpha: 1,
+        ease: "expo.out",
+        duration: 0.8
+      });
 
-      if (previousCardImage) {
-        tl.fromTo(
-          previousCardImage,
+      if (img) {
+        tl.to(
+          img,
           {
-            rotate: 0,
-            yPercent: 0
-          },
-          {
-            rotate: -5,
-            yPercent: -25
+            scale: 1,
+            ease: "expo.out",
+            duration: 1
           },
           "<"
         );
       }
     });
-  }  /* =========================================================
+
+    return;
+  }
+
+  // Desktop: animate each previous card as the next card enters
+  cards.forEach((card, i) => {
+    if (i === 0) return;
+
+    const previousCard = cards[i - 1];
+    if (!previousCard) return;
+
+    const previousCardImage = previousCard.querySelector(
+      "[data-stacking-cards-img]"
+    );
+
+    const tl = gsap.timeline({
+      defaults: {
+        ease: "none",
+        duration: 1
+      },
+      scrollTrigger: {
+        trigger: card,
+        start: "top bottom",
+        end: "top top",
+        scrub: true,
+        invalidateOnRefresh: true
+      }
+    });
+
+    tl.fromTo(
+      previousCard,
+      {
+        yPercent: 0
+      },
+      {
+        yPercent: 50
+      }
+    );
+
+    if (previousCardImage) {
+      tl.fromTo(
+        previousCardImage,
+        {
+          rotate: 0,
+          yPercent: 0
+        },
+        {
+          rotate: -5,
+          yPercent: -25
+        },
+        "<"
+      );
+    }
+  });
+
+  // Desktop: animate the image inside the LAST card too
+  const lastCard = cards[cards.length - 1];
+  const lastCardImage = lastCard.querySelector(
+    "[data-stacking-cards-img]"
+  );
+
+  if (lastCardImage) {
+    gsap.fromTo(
+      lastCardImage,
+      {
+        rotate: 0,
+        yPercent: 0
+      },
+      {
+        rotate: -5,
+        yPercent: -25,
+        ease: "none",
+        scrollTrigger: {
+          trigger: lastCard,
+          start: "top bottom",
+          end: "top top",
+          scrub: true,
+          invalidateOnRefresh: true
+        }
+      }
+    );
+  }
+}
+  
+  
+  /* =========================================================
     OVERLAPPING SLIDER — MOBILE NATIVE / DESKTOP DRAGGABLE
   ========================================================= */
 
