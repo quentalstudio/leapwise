@@ -2637,8 +2637,7 @@ function initRevealOnScroll() {
     window.addEventListener("load", () => {
       window.scrollTo(0, 0);
       refreshScrollTrigger(300);
-    });
   });
+});
 
-  window.addEventListener("resize", refreshRevealOnResize);
 })();
