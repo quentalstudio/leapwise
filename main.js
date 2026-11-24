@@ -113,27 +113,29 @@
       start() {},
       scrollTo() {}
     };
-
-    window.lockLoaderScroll = function () {
-      window.isLoaderLocked = true;
-      document.documentElement.classList.add("is-loader-locked");
-      window.scrollTo(0, 0);
-    };
-
-    window.unlockLoaderScroll = function () {
-      window.isLoaderLocked = false;
-      document.documentElement.classList.remove("is-loader-locked");
-      window.scrollTo(0, 0);
-      refreshScrollTrigger(300);
-    };
   }
 
-  function initLenisScroll() {
+  let lenisInitialized = false;
+
+  window.lockLoaderScroll = function () {
+    window.isLoaderLocked = true;
+    document.documentElement.classList.add("is-loader-locked");
     window.scrollTo(0, 0);
+  };
 
-    const shouldUseLenis = !isMobilePerformanceMode() && typeof window.Lenis !== "undefined";
+  window.unlockLoaderScroll = function () {
+    window.isLoaderLocked = false;
+    document.documentElement.classList.remove("is-loader-locked");
+    window.scrollTo(0, 0);
+    initLenisScroll();
+    refreshScrollTrigger(300);
+  };
 
-    if (!shouldUseLenis) {
+  function initLenisScroll() {
+    if (lenisInitialized) return;
+    lenisInitialized = true;
+
+    if (isMobilePerformanceMode() || typeof window.Lenis !== "function") {
       createLenisFallback();
       return;
     }
@@ -152,10 +154,6 @@
       console.warn("Using native scrolling.", error);
     }
 
-    function resetScroll() {
-      lenis.scrollTo(0, { immediate: true, force: true });
-    }
-
     try {
       lenis = new Lenis({
         duration: 1.15,
@@ -168,8 +166,6 @@
         infinite: false
       });
 
-      lenis.stop();
-      resetScroll();
       window.lenis = lenis;
 
       if (hasGSAP() && hasPlugin("ScrollTrigger")) {
@@ -189,33 +185,7 @@
       }
     } catch (error) {
       useNativeScroll(error);
-      return;
     }
-
-    window.lockLoaderScroll = function () {
-      window.isLoaderLocked = true;
-      document.documentElement.classList.add("is-loader-locked");
-      window.scrollTo(0, 0);
-      try {
-        lenis.stop();
-        resetScroll();
-      } catch (error) {
-        useNativeScroll(error);
-      }
-    };
-
-    window.unlockLoaderScroll = function () {
-      window.isLoaderLocked = false;
-      document.documentElement.classList.remove("is-loader-locked");
-      try {
-        resetScroll();
-        lenis.start();
-      } catch (error) {
-        useNativeScroll(error);
-      }
-      window.scrollTo(0, 0);
-      refreshScrollTrigger(300);
-    };
   }
 
 let revealSplits = [];
@@ -2674,8 +2644,6 @@ function setupDesktopOverlappingSlider(init) {
 
   document.addEventListener("DOMContentLoaded", () => {
     safeRegisterPlugins();
-
-    initLenisScroll();
 
     const fontReady =
       document.fonts && document.fonts.ready
