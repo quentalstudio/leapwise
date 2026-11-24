@@ -6,10 +6,6 @@
 
   window.leapwiseMainLoaded = true;
 
-  /* =========================================================
-    HELPERS
-  ========================================================= */
-
   const mqMobile = window.matchMedia("(max-width: 767px)");
   const mqTouch = window.matchMedia("(pointer: coarse)");
   const mqReduced = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -60,10 +56,6 @@
   }
 
   safeRegisterPlugins();
-
-  /* =========================================================
-    LENIS + LOADER SCROLL LOCK
-  ========================================================= */
 
   if ("scrollRestoration" in history) {
     history.scrollRestoration = "manual";
@@ -146,84 +138,88 @@
       return;
     }
 
-    const lenis = new Lenis({
-      duration: 1.15,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      orientation: "vertical",
-      gestureOrientation: "vertical",
-      smoothWheel: true,
-      wheelMultiplier: 1,
-      touchMultiplier: 1,
-      infinite: false
-    });
+    let lenis;
+    let detachTicker;
 
-    window.lenis = lenis;
-    lenis.stop();
+    function useNativeScroll(error) {
+      if (detachTicker) detachTicker();
+      createLenisFallback();
+      try {
+        if (lenis) lenis.destroy();
+      } catch (cleanupError) {
+        console.warn("Lenis cleanup failed.", cleanupError);
+      }
+      console.warn("Using native scrolling.", error);
+    }
 
-    lenis.scrollTo(0, {
-      immediate: true,
-      force: true
-    });
+    function resetScroll() {
+      lenis.scrollTo(0, { immediate: true, force: true });
+    }
 
-    if (hasGSAP() && hasPlugin("ScrollTrigger")) {
-      lenis.on("scroll", ScrollTrigger.update);
-
-      gsap.ticker.add((time) => {
-        lenis.raf(time * 1000);
+    try {
+      lenis = new Lenis({
+        duration: 1.15,
+        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+        orientation: "vertical",
+        gestureOrientation: "vertical",
+        smoothWheel: true,
+        wheelMultiplier: 1,
+        touchMultiplier: 1,
+        infinite: false
       });
 
-      gsap.ticker.lagSmoothing(0);
-    } else {
-      function raf(time) {
-        lenis.raf(time);
-        requestAnimationFrame(raf);
-      }
+      lenis.stop();
+      resetScroll();
+      window.lenis = lenis;
 
-      requestAnimationFrame(raf);
+      if (hasGSAP() && hasPlugin("ScrollTrigger")) {
+        lenis.on("scroll", ScrollTrigger.update);
+        const tick = (time) => lenis.raf(time * 1000);
+        gsap.ticker.add(tick);
+        detachTicker = () => gsap.ticker.remove(tick);
+        gsap.ticker.lagSmoothing(0);
+      } else {
+        let frame;
+        function tick(time) {
+          lenis.raf(time);
+          frame = requestAnimationFrame(tick);
+        }
+        frame = requestAnimationFrame(tick);
+        detachTicker = () => cancelAnimationFrame(frame);
+      }
+    } catch (error) {
+      useNativeScroll(error);
+      return;
     }
 
     window.lockLoaderScroll = function () {
       window.isLoaderLocked = true;
       document.documentElement.classList.add("is-loader-locked");
       window.scrollTo(0, 0);
-
-      if (window.lenis) {
-        window.lenis.stop();
-        window.lenis.scrollTo(0, {
-          immediate: true,
-          force: true
-        });
+      try {
+        lenis.stop();
+        resetScroll();
+      } catch (error) {
+        useNativeScroll(error);
       }
     };
 
     window.unlockLoaderScroll = function () {
       window.isLoaderLocked = false;
       document.documentElement.classList.remove("is-loader-locked");
-
-      if (window.lenis) {
-        window.lenis.scrollTo(0, {
-          immediate: true,
-          force: true
-        });
-
-        window.lenis.start();
+      try {
+        resetScroll();
+        lenis.start();
+      } catch (error) {
+        useNativeScroll(error);
       }
-
       window.scrollTo(0, 0);
       refreshScrollTrigger(300);
     };
   }
 
- /* =========================================================
-  REVEAL ON SCROLL — SPLITTEXT 3.13+ / RESPONSIVE / ACCESSIBLE
-========================================================= */
-
 let revealSplits = [];
 let revealAnimations = [];
-
-/* =========================================================
-  CLEANUP
-========================================================= */
 
 function cleanupRevealOnScroll() {
   revealAnimations.forEach((animation) => {
@@ -247,15 +243,6 @@ function cleanupRevealOnScroll() {
   revealSplits = [];
 }
 
-/* =========================================================
-  GET TEXT TARGETS
-
-  Se data-text-reveal estiver num Rich Text/container,
-  anima cada bloco de texto individualmente.
-
-  Se estiver num elemento normal, anima o próprio elemento.
-========================================================= */
-
 function getTextRevealTargets(type) {
   const targets = [];
 
@@ -275,33 +262,15 @@ function getTextRevealTargets(type) {
         ].includes(child.tagName);
       });
 
-      /*
-       * ELEMENTO NORMAL
-       *
-       * Exemplo:
-       * <h2 data-text-reveal="lines">
-       */
       if (!blocks.length) {
         targets.push(element);
         return;
       }
 
-      /*
-       * CONTAINER / RICH TEXT
-       *
-       * Exemplo:
-       * <div class="w-richtext" data-text-reveal="lines">
-       *   <p>...</p>
-       *   <p>...</p>
-       * </div>
-       */
       blocks.forEach((block) => {
         targets.push(block);
       });
 
-      /*
-       * LIST ITEMS
-       */
       Array.from(element.children).forEach((child) => {
         if (
           child.tagName !== "UL" &&
@@ -320,10 +289,6 @@ function getTextRevealTargets(type) {
 
   return targets;
 }
-
-/* =========================================================
-  INIT
-========================================================= */
 
 function initRevealOnScroll() {
   if (
@@ -349,10 +314,6 @@ function initRevealOnScroll() {
       "[data-element-reveal]"
     );
 
-  /* =========================================================
-    WORD REVEAL
-  ========================================================= */
-
   wordElements.forEach((textEl) => {
     const alreadyRevealed =
       textEl.dataset.revealDone === "true";
@@ -362,29 +323,14 @@ function initRevealOnScroll() {
 
       mask: "words",
 
-      /*
-       * SplitText trata automaticamente
-       * font loading + resize.
-       */
       autoSplit: true,
 
-      /*
-       * Evita duplicar/reestruturar elementos
-       * nested desnecessariamente.
-       */
       deepSlice: false,
 
-      /*
-       * O SplitText moderno já trata
-       * aria-label / aria-hidden.
-       */
       aria: "auto",
 
       onSplit(self) {
-        /*
-         * Se já revelou ou o utilizador prefere
-         * reduced motion, mostra imediatamente.
-         */
+
         if (
           alreadyRevealed ||
           prefersReducedMotion
@@ -426,21 +372,12 @@ function initRevealOnScroll() {
 
         revealAnimations.push(tween);
 
-        /*
-         * IMPORTANTE:
-         * retornar a animação permite ao SplitText
-         * limpar/sincronizar corretamente num re-split.
-         */
         return tween;
       }
     });
 
     revealSplits.push(split);
   });
-
-  /* =========================================================
-    LINE REVEAL
-  ========================================================= */
 
   lineElements.forEach((textEl) => {
     const alreadyRevealed =
@@ -451,26 +388,14 @@ function initRevealOnScroll() {
 
       mask: "lines",
 
-      /*
-       * Responsive re-splitting nativo.
-       */
       autoSplit: true,
 
-      /*
-       * Evita reorganizar nested elements
-       * quando possível.
-       */
       deepSlice: false,
 
-      /*
-       * Accessibility nativa do SplitText.
-       */
       aria: "auto",
 
       onSplit(self) {
-        /*
-         * Já revelou / reduced motion
-         */
+
         if (
           textEl.dataset.revealDone ===
             "true" ||
@@ -513,20 +438,12 @@ function initRevealOnScroll() {
 
         revealAnimations.push(tween);
 
-        /*
-         * SplitText usa esta animação para
-         * gerir automaticamente os re-splits.
-         */
         return tween;
       }
     });
 
     revealSplits.push(split);
   });
-
-  /* =========================================================
-    ELEMENT REVEAL
-  ========================================================= */
 
   revealElements.forEach((el) => {
     const alreadyRevealed =
@@ -570,9 +487,6 @@ function initRevealOnScroll() {
 
   refreshScrollTrigger();
 }
-    /* =========================================================
-    CURSOR TRAIL — DESKTOP ONLY
-  ========================================================= */
 
   function initDrawPathCursorEffect() {
     if (!hasGSAP()) return;
@@ -726,10 +640,6 @@ function initRevealOnScroll() {
     requestAnimationFrame(render);
   }
 
-  /* =========================================================
-    CRISP LOADER
-  ========================================================= */
-
   function lockPageScroll() {
     if (window.lockLoaderScroll) window.lockLoaderScroll();
   }
@@ -739,13 +649,14 @@ function initRevealOnScroll() {
   }
 
   function initCrispLoadingAnimation() {
-    if (!hasGSAP() || !hasPlugin("SplitText")) return;
+    const container = document.querySelector(".crisp-header");
+    if (!container || !hasGSAP() || !hasPlugin("SplitText")) {
+      container?.classList.remove("is--hidden", "is--loading");
+      unlockPageScroll();
+      return;
+    }
 
     safeRegisterPlugins();
-
-    const container = document.querySelector(".crisp-header");
-    if (!container) return;
-
     lockPageScroll();
     window.scrollTo(0, 0);
 
@@ -853,7 +764,7 @@ function initRevealOnScroll() {
 
     tl.call(
       function () {
-        container.classList.remove("is--loading");
+        container.classList.remove("is--hidden", "is--loading");
         unlockPageScroll();
         window.scrollTo(0, 0);
         initCrispHeaderReveal();
@@ -947,10 +858,6 @@ function initRevealOnScroll() {
     }
   }
 
-  /* =========================================================
-    PROGRESS NAVIGATION
-  ========================================================= */
-
   function initProgressNavigation() {
     if (!hasGSAP() || !hasPlugin("ScrollTrigger")) return;
 
@@ -1030,10 +937,6 @@ function initRevealOnScroll() {
       updateIndicator(activeLink);
     });
   }
-
-  /* =========================================================
-    MODAL + VIDEO
-  ========================================================= */
 
   function initModalBasic() {
     const modalGroup = document.querySelector("[data-modal-group-status]");
@@ -1163,9 +1066,7 @@ function initRevealOnScroll() {
         }
       }, closeDuration);
     }
-  }  /* =========================================================
-    STICKY TITLE — MOBILE LIGHT / DESKTOP FULL
-  ========================================================= */
+  }
 
   function initStickyTitleScroll() {
     if (!hasGSAP() || !hasPlugin("ScrollTrigger") || !hasPlugin("SplitText")) return;
@@ -1361,10 +1262,6 @@ function initRevealOnScroll() {
       });
     });
   }
-
-  /* =========================================================
-    BACKGROUND ZOOM — MOBILE LIGHT / DESKTOP FULL
-  ========================================================= */
 
   function initBackgroundZoom() {
     if (!hasGSAP() || !hasPlugin("ScrollTrigger")) return;
@@ -1628,10 +1525,6 @@ function initRevealOnScroll() {
     });
   }
 
-/* =========================================================
-  STACKING CARDS — MOBILE LIGHT / DESKTOP FULL
-========================================================= */
-
 function initStackingCardsParallax() {
   if (!hasGSAP() || !hasPlugin("ScrollTrigger")) return;
 
@@ -1690,7 +1583,6 @@ function initStackingCardsParallax() {
     return;
   }
 
-  // Desktop: animate each previous card as the next card enters
   cards.forEach((card, i) => {
     if (i === 0) return;
 
@@ -1741,7 +1633,6 @@ function initStackingCardsParallax() {
     }
   });
 
-  // Desktop: animate the image inside the LAST card too
   const lastCard = cards[cards.length - 1];
   const lastCardImage = lastCard.querySelector(
     "[data-stacking-cards-img]"
@@ -1769,12 +1660,6 @@ function initStackingCardsParallax() {
     );
   }
 }
-  
-  
-
-/* =========================================================
-  OVERLAPPING SLIDER — MOBILE NATIVE / DESKTOP DRAGGABLE
-========================================================= */
 
 function initOverlappingSlider() {
   const inits = document.querySelectorAll("[data-overlap-slider-init]");
@@ -2278,11 +2163,6 @@ function setupDesktopOverlappingSlider(init) {
   updateButtons();
 }
 
-
-  /* =========================================================
-    FAQ
-  ========================================================= */
-
   function initFAQ() {
     const faqCards = document.querySelectorAll(".faq_card_wrap");
 
@@ -2302,10 +2182,6 @@ function setupDesktopOverlappingSlider(init) {
       updateCardState();
     });
   }
-
-  /* =========================================================
-    COUNTERS
-  ========================================================= */
 
   function initCounters() {
     const SELECTOR = '[data-count="True"]';
@@ -2463,9 +2339,7 @@ function setupDesktopOverlappingSlider(init) {
       el.dataset.countObserved = "true";
       observer.observe(el);
     });
-  }  /* =========================================================
-    DRAW RANDOM UNDERLINE — DESKTOP ONLY
-  ========================================================= */
+  }
 
   function initDrawRandomUnderline() {
     if (!hasGSAP() || !hasPlugin("DrawSVGPlugin")) return;
@@ -2562,10 +2436,6 @@ function setupDesktopOverlappingSlider(init) {
       });
     });
   }
-
-  /* =========================================================
-    STACKING STICKY CARDS BOUNCE
-  ========================================================= */
 
   function initStackingStickyCardsBounce() {
     if (!hasGSAP() || !hasPlugin("ScrollTrigger")) return;
@@ -2802,10 +2672,6 @@ function setupDesktopOverlappingSlider(init) {
     };
   }
 
-  /* =========================================================
-    INIT
-  ========================================================= */
-
   document.addEventListener("DOMContentLoaded", () => {
     safeRegisterPlugins();
 
@@ -2817,8 +2683,8 @@ function setupDesktopOverlappingSlider(init) {
         : Promise.resolve();
 
     fontReady.then(() => {
-      initRevealOnScroll();
       initCrispLoadingAnimation();
+      initRevealOnScroll();
       initStickyTitleScroll();
       initBackgroundZoom();
       initStackingCardsParallax();
